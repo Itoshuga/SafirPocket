@@ -14,6 +14,11 @@ export class ProfilesController {
     return this.profiles.getMe(user.id);
   }
 
+  @Get('summary')
+  summary(@CurrentUser() user: AuthenticatedUser) {
+    return this.profiles.summary(user.id);
+  }
+
   @Patch()
   updateMe(@CurrentUser() user: AuthenticatedUser, @Body() body: unknown) {
     return this.profiles.updateMe(user.id, parseInput(profileUpdateSchema, body));

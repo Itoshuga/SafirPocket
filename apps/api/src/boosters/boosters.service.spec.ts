@@ -10,7 +10,26 @@ describe('BoostersService atomicity', () => {
       priceCurrency: 'demo_gem',
       priceAmount: 100n,
       openedAt: new Date(),
-      cards: [{ id: crypto.randomUUID() }],
+      boosterProduct: {
+        id: crypto.randomUUID(),
+        name: 'Booster test',
+        slug: 'booster-test',
+        artworkPath: null,
+      },
+      cards: [
+        {
+          quantity: 1,
+          cardVariant: {
+            id: crypto.randomUUID(),
+            cardId: crypto.randomUUID(),
+            name: 'Standard',
+            slug: 'standard',
+            finish: 'standard',
+            artworkPath: null,
+            card: { name: 'Carte test' },
+          },
+        },
+      ],
     };
     const transaction = vi.fn();
     const prisma = {
@@ -24,6 +43,8 @@ describe('BoostersService atomicity', () => {
       crypto.randomUUID(),
     );
     expect(result.id).toBe(previous.id);
+    expect(result.cards).toHaveLength(1);
+    expect(result.cards[0]?.quantity).toBe(1);
     expect(transaction).not.toHaveBeenCalled();
   });
 

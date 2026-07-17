@@ -1,95 +1,215 @@
 'use client';
 
-import type { PublicUser } from '@safir/shared-types';
-import { Badge, Button, Card, ErrorState, Input, Spinner } from '@safir/ui';
-import { profileUpdateSchema } from '@safir/validation';
+import { zodResolver } from '@hookform/resolvers/zod';
+import type { ProfileSummary, PublicUser } from '@safir/shared-types';
+import {
+  Avatar,
+  Badge,
+  Button,
+  Card,
+  ErrorState,
+  Input,
+  Panel,
+  Skeleton,
+  StatCard,
+  Switch,
+  Textarea,
+} from '@safir/ui';
+import { profileUpdateSchema, type ProfileUpdateInput } from '@safir/validation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState, type FormEvent } from 'react';
-import { apiFetch } from '@/lib/api-client';
+import { useEffect, useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { ApiClientError, apiFetch } from '@/lib/api-client';
+import { publicEnv } from '@/lib/env';
+import { queryKeys } from '@/lib/query-keys';
 import { useAppStore } from '@/stores/app-store';
 
-export function ProfileForm() {
+function avatarUrl(path: string | null) {
+  if (!path) return null;
+  if (path.startsWith('http://') || path.startsWith('https://')) return path;
+  return publicEnv.supabaseUrl
+    ? `${publicEnv.supabaseUrl}/storage/v1/object/public/avatars/${path.split('/').map(encodeURIComponent).join('/')}`
+    : null;
+}
+
+function ProfileEditor({ profile }: { profile: PublicUser }) {
   const client = useQueryClient();
   const notify = useAppStore((state) => state.notify);
-  const [error, setError] = useState<string | null>(null);
-  const query = useQuery({
-    queryKey: ['profile'],
-    queryFn: () => apiFetch<PublicUser>('/api/v1/me/profile'),
+  const form = useForm<ProfileUpdateInput>({
+    resolver: zodResolver(profileUpdateSchema),
+    defaultValues: {
+      username: profile.username,
+      displayName: profile.displayName,
+      bio: profile.bio,
+    },
   });
   const update = useMutation({
-    mutationFn: (body: unknown) =>
+    mutationFn: (body: ProfileUpdateInput) =>
       apiFetch<PublicUser>('/api/v1/me/profile', { method: 'PATCH', body: JSON.stringify(body) }),
-    onSuccess: (profile) => {
-      client.setQueryData(['profile'], profile);
+    onSuccess: (next) => {
+      client.setQueryData(queryKeys.profile, next);
       notify('Profil mis à jour.', 'success');
+      form.reset({ username: next.username, displayName: next.displayName, bio: next.bio });
     },
-    onError: (reason) => setError(reason.message),
+    onError: (error) => {
+      if (error instanceof ApiClientError && error.fieldErrors) {
+        for (const [field, messages] of Object.entries(error.fieldErrors)) {
+          if (field === 'username' || field === 'displayName' || field === 'bio') {
+            form.setError(field, { message: messages[0] });
+          }
+        }
+      }
+      form.setError('root', { message: error.message });
+    },
   });
-  if (query.isLoading)
-    return (
-      <div className="grid min-h-64 place-items-center">
-        <Spinner />
-      </div>
-    );
-  if (query.isError || !query.data)
-    return <ErrorState message="Impossible de charger le profil." />;
-  const profile = query.data;
-  function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setError(null);
-    const form = new FormData(event.currentTarget);
-    const parsed = profileUpdateSchema.safeParse({
-      username: form.get('username'),
-      displayName: form.get('displayName') || null,
-      bio: form.get('bio') || null,
-    });
-    if (!parsed.success) return setError('Vérifiez les champs du profil.');
-    update.mutate(parsed.data);
-  }
   return (
     <Card>
-      <form className="space-y-5" onSubmit={submit}>
+      <form
+        className="space-y-5"
+        onSubmit={form.handleSubmit((values) => update.mutate(values))}
+        noValidate
+      >
         <div className="flex items-center gap-4">
-          <div className="grid size-16 place-items-center rounded-2xl bg-sapphire-500/15 text-2xl text-sapphire-300">
-            ◆
-          </div>
+          <Avatar
+            src={avatarUrl(profile.avatarPath)}
+            alt={profile.displayName ?? profile.username}
+            fallback={profile.displayName ?? profile.username}
+            size="lg"
+          />
           <div>
-            <p className="font-bold">{profile.displayName ?? profile.username}</p>
-            <Badge>{profile.role}</Badge>
+            <p className="font-semibold">{profile.displayName ?? profile.username}</p>
+            <Badge className="mt-1">{profile.role}</Badge>
+            {profile.createdAt ? (
+              <p className="mt-2 text-xs text-muted-foreground">
+                Membre depuis le{' '}
+                {new Intl.DateTimeFormat('fr-FR', { dateStyle: 'medium' }).format(
+                  new Date(profile.createdAt),
+                )}
+              </p>
+            ) : null}
           </div>
         </div>
-        <label className="block text-sm font-semibold">
+        <label className="block text-sm font-medium">
           Nom d’utilisateur
           <Input
-            className="mt-2"
-            name="username"
-            defaultValue={profile.username}
-            pattern="[A-Za-z0-9_]{3,30}"
+            className="mt-1.5"
+            aria-invalid={Boolean(form.formState.errors.username)}
+            {...form.register('username')}
           />
         </label>
-        <label className="block text-sm font-semibold">
+        {form.formState.errors.username ? (
+          <p className="-mt-3 text-xs text-danger">{form.formState.errors.username.message}</p>
+        ) : null}
+        <label className="block text-sm font-medium">
           Nom affiché
           <Input
-            className="mt-2"
-            name="displayName"
-            defaultValue={profile.displayName ?? ''}
+            className="mt-1.5"
             maxLength={80}
+            {...form.register('displayName', { setValueAs: (value) => value || null })}
           />
         </label>
-        <label className="block text-sm font-semibold">
+        <label className="block text-sm font-medium">
           Bio
-          <textarea
-            className="mt-2 min-h-28 w-full rounded-xl border border-white/10 bg-ink-800/70 p-4 outline-none focus:border-sapphire-400"
-            name="bio"
-            defaultValue={profile.bio ?? ''}
+          <Textarea
+            className="mt-1.5"
             maxLength={500}
+            {...form.register('bio', { setValueAs: (value) => value || null })}
           />
         </label>
-        {error ? <ErrorState message={error} /> : null}
-        <Button type="submit" disabled={update.isPending}>
-          {update.isPending ? 'Enregistrement…' : 'Enregistrer'}
+        {form.formState.errors.root?.message ? (
+          <ErrorState message={form.formState.errors.root.message} />
+        ) : null}
+        <Button
+          type="submit"
+          loading={update.isPending}
+          loadingLabel="Enregistrement…"
+          disabled={!form.formState.isDirty}
+        >
+          Enregistrer
         </Button>
       </form>
     </Card>
+  );
+}
+
+function Preferences() {
+  const [reducedMotion, setReducedMotion] = useState(false);
+  useEffect(() => {
+    const stored = window.localStorage.getItem('safir:reduce-motion') === 'true';
+    document.documentElement.dataset.reduceMotion = String(stored);
+    const timer = window.setTimeout(() => setReducedMotion(stored), 0);
+    return () => window.clearTimeout(timer);
+  }, []);
+  return (
+    <Panel id="preferences">
+      <h2 className="text-base font-semibold">Préférences d’affichage</h2>
+      <p className="mt-1 text-sm text-muted-foreground">
+        Ce réglage non sensible est conservé uniquement dans ce navigateur.
+      </p>
+      <div className="mt-5 border-t border-border pt-4">
+        <Switch
+          id="reduce-motion"
+          label="Réduire les animations"
+          checked={reducedMotion}
+          onCheckedChange={(checked) => {
+            setReducedMotion(checked);
+            window.localStorage.setItem('safir:reduce-motion', String(checked));
+            document.documentElement.dataset.reduceMotion = String(checked);
+          }}
+        />
+      </div>
+    </Panel>
+  );
+}
+
+export function ProfileForm() {
+  const profile = useQuery({
+    queryKey: queryKeys.profile,
+    queryFn: () => apiFetch<PublicUser>('/api/v1/me/profile'),
+  });
+  const summary = useQuery({
+    queryKey: queryKeys.profileSummary,
+    queryFn: () => apiFetch<ProfileSummary>('/api/v1/me/profile/summary'),
+  });
+  if (profile.isLoading)
+    return (
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_20rem]">
+        <Skeleton className="h-[34rem]" />
+        <Skeleton className="h-72" />
+      </div>
+    );
+  if (profile.isError || !profile.data)
+    return <ErrorState message="Impossible de charger le profil." />;
+  return (
+    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
+      <div className="space-y-6">
+        <ProfileEditor profile={profile.data} />
+        <Preferences />
+      </div>
+      <div className="grid h-fit gap-3 sm:grid-cols-2 lg:grid-cols-1">
+        {summary.isLoading
+          ? Array.from({ length: 4 }, (_, index) => <Skeleton key={index} className="h-24" />)
+          : null}
+        {summary.data ? (
+          <>
+            <StatCard
+              label="Collection"
+              value={summary.data.collection.uniqueCards}
+              hint={`${summary.data.collection.completionRate} % complète`}
+            />
+            <StatCard label="Decks" value={summary.data.deckCount} />
+            <StatCard
+              label="Victoires"
+              value={summary.data.wins}
+              hint={`${summary.data.matchCount} parties`}
+            />
+            <StatCard
+              label="Classement"
+              value={summary.data.currentRank ? `#${summary.data.currentRank}` : 'Non classé'}
+            />
+          </>
+        ) : null}
+      </div>
+    </div>
   );
 }

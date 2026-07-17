@@ -10,14 +10,14 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: '#050713',
-  colorScheme: 'dark',
+  themeColor: '#f7f8fa',
+  colorScheme: 'light',
 };
 
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
   return (
-    <html lang="fr">
-      <body className="pb-20 antialiased md:pb-0">
+    <html lang="fr" data-scroll-behavior="smooth">
+      <body className="pb-20 antialiased lg:pb-0 lg:pl-64">
         <Providers>
           <Navigation />
           {children}

@@ -42,13 +42,70 @@ export class BoostersService {
         priceCurrency: true,
         priceAmount: true,
         cardsPerPack: true,
+        availableUntil: true,
+        slots: { select: { weightConfig: true } },
       },
       orderBy: { createdAt: 'desc' },
     });
-    return products.map((product) => ({
-      ...product,
-      priceAmount: product.priceAmount.toString(),
-    }));
+    const variantIds = [
+      ...new Set(
+        products.flatMap((product) =>
+          product.slots.flatMap((slot) => {
+            const config = weightConfigSchema.safeParse(slot.weightConfig);
+            return config.success
+              ? config.data.entries.map(({ cardVariantId }) => cardVariantId)
+              : [];
+          }),
+        ),
+      ),
+    ];
+    const variants = variantIds.length
+      ? await this.prisma.cardVariant.findMany({
+          where: { id: { in: variantIds }, card: { status: 'published' } },
+          select: {
+            id: true,
+            name: true,
+            card: {
+              select: {
+                id: true,
+                setId: true,
+                name: true,
+                slug: true,
+                collectionNumber: true,
+                rarity: true,
+                cardType: true,
+                cost: true,
+                artworkPath: true,
+                status: true,
+                set: { select: { id: true, name: true, slug: true, code: true } },
+              },
+            },
+          },
+        })
+      : [];
+    const variantsById = new Map(variants.map((variant) => [variant.id, variant]));
+    return products.map(({ slots, ...product }) => {
+      const possibleIds = new Set(
+        slots.flatMap((slot) => {
+          const config = weightConfigSchema.safeParse(slot.weightConfig);
+          return config.success
+            ? config.data.entries.map(({ cardVariantId }) => cardVariantId)
+            : [];
+        }),
+      );
+      return {
+        ...product,
+        priceAmount: product.priceAmount.toString(),
+        possibleCards: [...possibleIds]
+          .map((id) => variantsById.get(id))
+          .filter((variant): variant is NonNullable<typeof variant> => Boolean(variant))
+          .map((variant) => ({
+            variantId: variant.id,
+            variantName: variant.name,
+            card: variant.card,
+          })),
+      };
+    });
   }
 
   async openPack(userId: string, productId: string, idempotencyKey: string) {
@@ -59,7 +116,12 @@ export class BoostersService {
       async (transaction) => {
         const existing = await transaction.packOpening.findUnique({
           where: { userId_idempotencyKey: { userId, idempotencyKey } },
-          include: { cards: { include: { cardVariant: { include: { card: true } } } } },
+          include: {
+            boosterProduct: true,
+            cards: {
+              include: { cardVariant: { include: { card: { include: { set: true } } } } },
+            },
+          },
         });
         if (existing) {
           if (existing.status === 'completed') return existing;
@@ -196,7 +258,12 @@ export class BoostersService {
         return transaction.packOpening.update({
           where: { id: created.id },
           data: { status: 'completed', openedAt: now },
-          include: { cards: { include: { cardVariant: { include: { card: true } } } } },
+          include: {
+            boosterProduct: true,
+            cards: {
+              include: { cardVariant: { include: { card: { include: { set: true } } } } },
+            },
+          },
         });
       },
       { isolationLevel: 'Serializable' },
@@ -217,8 +284,24 @@ export class BoostersService {
   private findCompleted(userId: string, idempotencyKey: string) {
     return this.prisma.packOpening.findFirst({
       where: { userId, idempotencyKey, status: 'completed' },
-      include: { cards: { include: { cardVariant: { include: { card: true } } } } },
+      include: {
+        boosterProduct: true,
+        cards: { include: { cardVariant: { include: { card: { include: { set: true } } } } } },
+      },
     });
+  }
+
+  async recentOpenings(userId: string) {
+    const openings = await this.prisma.packOpening.findMany({
+      where: { userId, status: 'completed' },
+      include: {
+        boosterProduct: true,
+        cards: { include: { cardVariant: { include: { card: { include: { set: true } } } } } },
+      },
+      orderBy: { openedAt: 'desc' },
+      take: 12,
+    });
+    return openings.map((opening) => this.serializeOpening(opening));
   }
 
   private serializeOpening(opening: {
@@ -227,7 +310,24 @@ export class BoostersService {
     priceCurrency: string;
     priceAmount: bigint;
     openedAt: Date | null;
-    cards: unknown[];
+    boosterProduct: {
+      id: string;
+      name: string;
+      slug: string;
+      artworkPath: string | null;
+    };
+    cards: Array<{
+      quantity: number;
+      cardVariant: {
+        id: string;
+        cardId: string;
+        name: string;
+        slug: string;
+        finish: string;
+        artworkPath: string | null;
+        card: Record<string, unknown>;
+      };
+    }>;
   }) {
     return {
       id: opening.id,
@@ -235,7 +335,16 @@ export class BoostersService {
       priceCurrency: opening.priceCurrency,
       priceAmount: opening.priceAmount.toString(),
       openedAt: opening.openedAt?.toISOString() ?? null,
-      cards: opening.cards,
+      product: {
+        id: opening.boosterProduct.id,
+        name: opening.boosterProduct.name,
+        slug: opening.boosterProduct.slug,
+        artworkPath: opening.boosterProduct.artworkPath,
+      },
+      cards: opening.cards.map(({ quantity, cardVariant }) => ({
+        quantity,
+        variant: cardVariant,
+      })),
     };
   }
 }

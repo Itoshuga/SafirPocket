@@ -12,17 +12,18 @@ async function bootstrap(): Promise<void> {
   const config = app.get(ConfigService);
   const logger = app.get(Logger);
   const webOrigin = config.getOrThrow<string>('WEB_ORIGIN');
+  const webOrigins = [webOrigin, ...(config.get<string[]>('WEB_ORIGINS') ?? [])];
 
   app.useLogger(logger);
   app.use(helmet());
   app.enableCors({
-    origin: [webOrigin],
+    origin: webOrigins,
     credentials: true,
     methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Authorization', 'Content-Type', 'Idempotency-Key', 'X-Request-Id'],
   });
   app.useGlobalFilters(new ApiExceptionFilter(logger));
-  app.useWebSocketAdapter(new SafirSocketAdapter(app, webOrigin));
+  app.useWebSocketAdapter(new SafirSocketAdapter(app, webOrigins));
   app.enableShutdownHooks();
 
   const port = config.getOrThrow<number>('API_PORT');

@@ -24,6 +24,11 @@ export class CardsController {
     return this.cards.listCards(parseInput(cardFiltersSchema, query));
   }
 
+  @Get('card-facets')
+  facets() {
+    return this.cards.facets();
+  }
+
   @Get('cards/:id')
   getCard(@Param('id') id: string) {
     return this.cards.getCard(parseInput(idSchema, id));

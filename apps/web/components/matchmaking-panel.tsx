@@ -1,131 +1,198 @@
 'use client';
 
 import type { ClientToServerEvents, DeckSummary, ServerToClientEvents } from '@safir/shared-types';
-import { Button, Card, EmptyState, ErrorState, Spinner } from '@safir/ui';
+import { Badge, Button, Card, EmptyState, ErrorState, Panel, Select, Skeleton } from '@safir/ui';
 import { useQuery } from '@tanstack/react-query';
+import { CheckCircle2, CircleDot, Radio, Swords } from 'lucide-react';
+import Link from 'next/link';
 import { io, type Socket } from 'socket.io-client';
 import { useEffect, useRef, useState } from 'react';
 import { apiFetch } from '@/lib/api-client';
-import { publicEnv } from '@/lib/env';
+import { getBrowserApiUrl } from '@/lib/env';
+import { queryKeys } from '@/lib/query-keys';
 import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
 
 type MatchSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
+type QueueStatus = 'idle' | 'connecting' | 'queued' | 'matched' | 'error';
 
 export function MatchmakingPanel() {
   const decks = useQuery({
-    queryKey: ['decks'],
+    queryKey: queryKeys.decks,
     queryFn: () => apiFetch<DeckSummary[]>('/api/v1/me/decks'),
   });
-  const [status, setStatus] = useState<'idle' | 'connecting' | 'queued' | 'matched'>('idle');
-  const [message, setMessage] = useState('Choisissez un deck pour rejoindre la file technique.');
+  const [status, setStatus] = useState<QueueStatus>('idle');
+  const [message, setMessage] = useState('Sélectionnez un deck pour rejoindre la file ouverte.');
   const [selectedDeck, setSelectedDeck] = useState('');
   const socket = useRef<MatchSocket | null>(null);
-
   useEffect(
     () => () => {
       socket.current?.disconnect();
     },
     [],
   );
-
+  function leaveQueue() {
+    socket.current?.emit('queue:leave', { format: 'open' });
+    socket.current?.disconnect();
+    socket.current = null;
+    setStatus('idle');
+    setMessage('Vous avez quitté la file.');
+  }
   async function joinQueue() {
     if (!selectedDeck) return;
     setStatus('connecting');
-    const { data } = await getSupabaseBrowserClient().auth.getSession();
-    if (!data.session) {
-      setStatus('idle');
-      return setMessage('Votre session a expiré.');
-    }
-    const connection: MatchSocket = io(`${publicEnv.apiUrl}/match`, {
-      auth: { token: data.session.access_token },
-      transports: ['websocket', 'polling'],
-    });
-    socket.current = connection;
-    connection.on('connect', () =>
-      connection.emit('queue:join', { format: 'open', deckId: selectedDeck }),
-    );
-    connection.on('queue:joined', () => {
-      setStatus('queued');
-      setMessage('Recherche d’un adversaire…');
-    });
-    connection.on('match:found', ({ matchId, opponent }) => {
-      setStatus('matched');
-      setMessage(
-        `Partie ${matchId.slice(0, 8)} trouvée contre ${opponent.displayName ?? opponent.username}.`,
+    setMessage('Connexion au service temps réel…');
+    try {
+      const { data } = await getSupabaseBrowserClient().auth.getSession();
+      if (!data.session) throw new Error('Votre session a expiré. Reconnectez-vous.');
+      const connection: MatchSocket = io(`${getBrowserApiUrl()}/match`, {
+        auth: { token: data.session.access_token },
+        transports: ['websocket', 'polling'],
+      });
+      socket.current = connection;
+      connection.on('connect', () =>
+        connection.emit('queue:join', { format: 'open', deckId: selectedDeck }),
       );
-    });
-    connection.on('match:error', (error) => {
-      setStatus('idle');
-      setMessage(error.message);
-    });
-    connection.on('disconnect', () =>
-      setStatus((current) => (current === 'matched' ? current : 'idle')),
-    );
+      connection.on('connect_error', () => {
+        setStatus('error');
+        setMessage(
+          'Connexion au matchmaking impossible. Vérifiez que l’API et Redis sont disponibles.',
+        );
+      });
+      connection.on('queue:joined', () => {
+        setStatus('queued');
+        setMessage('Recherche d’un adversaire en cours…');
+      });
+      connection.on('match:found', ({ matchId, opponent }) => {
+        setStatus('matched');
+        setMessage(
+          `Partie ${matchId.slice(0, 8)} trouvée contre ${opponent.displayName ?? opponent.username}.`,
+        );
+      });
+      connection.on('match:error', (error) => {
+        setStatus('error');
+        setMessage(error.message);
+      });
+      connection.on('disconnect', () =>
+        setStatus((current) => (current === 'matched' ? current : 'idle')),
+      );
+    } catch (error) {
+      setStatus('error');
+      setMessage(error instanceof Error ? error.message : 'Connexion impossible.');
+    }
   }
-
-  if (decks.isLoading)
-    return (
-      <div className="grid min-h-64 place-items-center">
-        <Spinner />
-      </div>
-    );
-  if (decks.isError) return <ErrorState message="Impossible de charger les decks." />;
+  if (decks.isLoading) return <Skeleton className="h-96" />;
+  if (decks.isError)
+    return <ErrorState message="Impossible de charger les decks nécessaires au matchmaking." />;
   if (!decks.data?.length)
     return (
-      <EmptyState title="Créez d’abord un deck">
-        La file vérifie toujours que le deck appartient au joueur authentifié.
-      </EmptyState>
+      <EmptyState
+        icon={<Swords className="size-5" />}
+        title="Créez d’abord un deck"
+        description="La file vérifie que le deck sélectionné vous appartient."
+        action={
+          <Button asChild>
+            <Link href="/decks/new">Créer un deck</Link>
+          </Button>
+        }
+      />
     );
   return (
-    <Card className="relative overflow-hidden p-7 sm:p-10">
-      <div className="absolute -right-16 -top-16 size-64 rounded-full bg-sapphire-500/10 blur-3xl" />
-      <div className="relative">
-        <span className="grid size-16 place-items-center rounded-2xl bg-sapphire-500/10 text-3xl text-sapphire-300">
-          ⚔
-        </span>
-        <h2 className="mt-6 text-2xl font-black">Matchmaking · format ouvert</h2>
-        <p className="mt-2 text-slate-400">{message}</p>
-        <label className="mt-7 block text-sm font-semibold">
+    <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_18rem]">
+      <Card className="p-6 sm:p-8">
+        <div className="flex items-center justify-between gap-4">
+          <span className="grid size-12 place-items-center rounded-md bg-primary-soft text-primary">
+            <Swords className="size-6" />
+          </span>
+          <Badge
+            tone={
+              status === 'error'
+                ? 'danger'
+                : status === 'matched'
+                  ? 'success'
+                  : status === 'queued'
+                    ? 'primary'
+                    : 'neutral'
+            }
+          >
+            {status === 'idle'
+              ? 'Disponible'
+              : status === 'connecting'
+                ? 'Connexion'
+                : status === 'queued'
+                  ? 'En file'
+                  : status === 'matched'
+                    ? 'Match trouvé'
+                    : 'Erreur'}
+          </Badge>
+        </div>
+        <h2 className="mt-6 text-xl font-semibold">Matchmaking · format ouvert</h2>
+        <p className="mt-2 min-h-12 text-sm leading-6 text-muted-foreground" aria-live="polite">
+          {message}
+        </p>
+        <label className="mt-6 block text-sm font-medium">
           Deck
-          <select
+          <Select
+            className="mt-1.5"
             value={selectedDeck}
             onChange={(event) => setSelectedDeck(event.target.value)}
-            disabled={status !== 'idle'}
-            className="mt-2 min-h-12 w-full rounded-xl border border-white/10 bg-ink-800 px-4"
+            disabled={status === 'connecting' || status === 'queued' || status === 'matched'}
           >
-            <option value="">Sélectionner…</option>
+            <option value="">Sélectionner un deck…</option>
             {decks.data.map((deck) => (
               <option value={deck.id} key={deck.id}>
-                {deck.name}
+                {deck.name} · {deck.cardCount} cartes
               </option>
             ))}
-          </select>
+          </Select>
         </label>
-        <div className="mt-5 flex gap-3">
-          <Button onClick={joinQueue} disabled={!selectedDeck || status !== 'idle'}>
-            {status === 'connecting'
-              ? 'Connexion…'
-              : status === 'queued'
-                ? 'En file…'
+        <div className="mt-5 flex flex-wrap gap-2">
+          {status === 'queued' ? (
+            <Button variant="outline" onClick={leaveQueue}>
+              Quitter la file
+            </Button>
+          ) : (
+            <Button
+              onClick={() => void joinQueue()}
+              disabled={!selectedDeck || status === 'connecting' || status === 'matched'}
+              loading={status === 'connecting'}
+              loadingLabel="Connexion…"
+            >
+              {status === 'error'
+                ? 'Réessayer'
                 : status === 'matched'
                   ? 'Match trouvé'
                   : 'Rejoindre la file'}
-          </Button>
-          {status === 'queued' ? (
-            <button
-              className="rounded-xl border border-white/10 px-5 font-semibold"
-              onClick={() => {
-                socket.current?.emit('queue:leave', { format: 'open' });
-                socket.current?.disconnect();
-                setStatus('idle');
-                setMessage('File quittée.');
-              }}
-            >
-              Quitter
-            </button>
-          ) : null}
+            </Button>
+          )}
         </div>
-      </div>
-    </Card>
+      </Card>
+      <Panel>
+        <h2 className="text-sm font-semibold">Étapes techniques</h2>
+        <ol className="mt-4 space-y-4 text-sm">
+          {[
+            { label: 'Deck contrôlé', done: Boolean(selectedDeck) },
+            { label: 'Socket authentifié', done: status === 'queued' || status === 'matched' },
+            { label: 'Adversaire trouvé', done: status === 'matched' },
+          ].map((step) => (
+            <li key={step.label} className="flex items-center gap-3">
+              {step.done ? (
+                <CheckCircle2 className="size-4 text-success" />
+              ) : status === 'connecting' || status === 'queued' ? (
+                <Radio className="size-4 text-primary" />
+              ) : (
+                <CircleDot className="size-4 text-muted-foreground" />
+              )}
+              <span className={step.done ? 'text-foreground' : 'text-muted-foreground'}>
+                {step.label}
+              </span>
+            </li>
+          ))}
+        </ol>
+        <p className="mt-6 border-t border-border pt-4 text-xs leading-5 text-muted-foreground">
+          La fondation temps réel est opérationnelle. L’interface de partie complète reste un
+          chantier distinct et n’est pas simulée ici.
+        </p>
+      </Panel>
+    </div>
   );
 }

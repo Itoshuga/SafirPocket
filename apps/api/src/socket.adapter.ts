@@ -5,7 +5,7 @@ import type { ServerOptions } from 'socket.io';
 export class SafirSocketAdapter extends IoAdapter {
   constructor(
     app: INestApplicationContext,
-    private readonly webOrigin: string,
+    private readonly webOrigins: string[],
   ) {
     super(app);
   }
@@ -14,7 +14,7 @@ export class SafirSocketAdapter extends IoAdapter {
     return super.createIOServer(port, {
       ...options,
       cors: {
-        origin: [this.webOrigin],
+        origin: this.webOrigins,
         credentials: true,
         methods: ['GET', 'POST'],
       },

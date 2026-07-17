@@ -21,6 +21,16 @@ Lire avant toute modification : `README.md`, `docs/security.md`, `supabase/migra
 6. Le serveur est autoritaire pour l’inventaire, l’économie, les boosters, les missions, les récompenses et les matchs. Le client envoie uniquement des intentions validées.
 7. Aucun code provenant de PostgreSQL ne doit être exécuté. Les effets utilisent exclusivement le registre contrôlé de `packages/game-engine`.
 8. Vérifier le propriétaire depuis le JWT (`sub`), jamais depuis un identifiant utilisateur envoyé dans le body.
+9. L’interface est exclusivement claire. Ne pas ajouter de `dark:`, sélecteur de thème, dégradé décoratif, halo, texture fantasy ou couleur non sémantique.
+10. Utiliser les tokens de `apps/web/app/globals.css` et les primitives de `packages/ui`; ne pas dupliquer un bouton, champ, panneau, état vide ou dialogue dans une page.
+11. Toute donnée affichée comme un état métier doit venir de l’API. Les agrégats de collection, quantités réservées, portefeuilles, tirages et classements ne sont jamais recalculés comme source de vérité dans le client.
+12. Centraliser les clés TanStack Query dans `apps/web/lib/query-keys.ts` et invalider seulement les familles concernées après une mutation.
+
+## Chaîne de changement
+
+Lorsqu’une interface nécessite une donnée absente, mettre à jour dans le même changement : contrat partagé, Zod si l’entrée est externe, contrôleur Nest, service Prisma, tests et documentation. Une migration Supabase additive n’est créée que si le schéma ou une policy doit réellement changer. Ne pas créer de migration pour une agrégation calculable depuis les tables existantes.
+
+Les conventions visuelles, responsive et de composants sont détaillées dans `docs/design-system.md`.
 
 ## Modules sensibles
 

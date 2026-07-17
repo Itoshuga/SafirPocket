@@ -1,5 +1,5 @@
 import type { ApiErrorBody } from '@safir/shared-types';
-import { publicEnv } from './env';
+import { getBrowserApiUrl } from './env';
 import { getSupabaseBrowserClient } from './supabase-browser';
 
 export class ApiClientError extends Error {
@@ -7,6 +7,8 @@ export class ApiClientError extends Error {
     public readonly status: number,
     public readonly code: string,
     message: string,
+    public readonly fieldErrors?: Record<string, string[]>,
+    public readonly requestId?: string,
   ) {
     super(message);
     this.name = 'ApiClientError';
@@ -23,13 +25,15 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
   } catch {
     // Public calls work without Supabase; protected calls receive a normalized 401 from the API.
   }
-  const response = await fetch(`${publicEnv.apiUrl}${path}`, { ...init, headers });
+  const response = await fetch(`${getBrowserApiUrl()}${path}`, { ...init, headers });
   if (!response.ok) {
     const body = (await response.json().catch(() => null)) as ApiErrorBody | null;
     throw new ApiClientError(
       response.status,
       body?.error.code ?? 'REQUEST_FAILED',
       body?.error.message ?? 'La requête a échoué.',
+      body?.error.fieldErrors,
+      body?.error.requestId,
     );
   }
   return (await response.json()) as T;

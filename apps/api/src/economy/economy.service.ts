@@ -5,10 +5,11 @@ import { PrismaService } from '../prisma/prisma.service.js';
 export class EconomyService {
   constructor(private readonly prisma: PrismaService) {}
 
-  wallets(userId: string) {
-    return this.prisma.wallet.findMany({
+  async wallets(userId: string) {
+    const wallets = await this.prisma.wallet.findMany({
       where: { userId },
       select: { currencyCode: true, balance: true, updatedAt: true },
     });
+    return wallets.map((wallet) => ({ ...wallet, balance: wallet.balance.toString() }));
   }
 }

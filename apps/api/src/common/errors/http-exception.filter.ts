@@ -43,6 +43,7 @@ export class ApiExceptionFilter implements ExceptionFilter {
         message,
         requestId: request.id,
         ...('details' in structured ? { details: structured.details } : {}),
+        ...('fieldErrors' in structured ? { fieldErrors: structured.fieldErrors } : {}),
       },
     });
   }

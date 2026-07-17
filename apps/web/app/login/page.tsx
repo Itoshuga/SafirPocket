@@ -1,24 +1,45 @@
 import type { Metadata } from 'next';
+import { Badge } from '@safir/ui';
+import { BookOpen, Layers3, ShieldCheck } from 'lucide-react';
+import { Suspense } from 'react';
 import { LoginForm } from '@/components/login-form';
 
 export const metadata: Metadata = { title: 'Connexion' };
 
 export default function LoginPage() {
   return (
-    <main className="mx-auto grid min-h-[calc(100vh-4rem)] max-w-6xl place-items-center px-4 py-12">
-      <div className="grid w-full overflow-hidden rounded-3xl border border-white/10 bg-ink-900/75 shadow-2xl lg:grid-cols-[1.05fr_.95fr]">
-        <section className="gem-grid hidden min-h-[36rem] flex-col justify-end bg-gradient-to-br from-sapphire-900/70 to-purple-950/60 p-10 lg:flex">
-          <div className="mb-6 size-20 rotate-45 rounded-2xl border border-sapphire-200/40 bg-gradient-to-br from-sapphire-200 to-sapphire-700 shadow-2xl shadow-sapphire-500/40" />
-          <p className="max-w-md text-3xl font-black text-balance">
-            Votre collection Safir, partout avec vous.
-          </p>
-          <p className="mt-3 max-w-md text-sapphire-200/70">
-            Retrouvez vos cartes, composez vos decks et rejoignez la file de jeu depuis un seul
-            espace.
-          </p>
+    <main className="mx-auto grid min-h-[calc(100dvh-3.5rem)] max-w-5xl place-items-center px-4 py-10">
+      <div className="grid w-full overflow-hidden rounded-lg border border-border bg-surface shadow-card lg:grid-cols-[1fr_1fr]">
+        <section className="hidden border-r border-border bg-primary-soft p-10 lg:flex lg:flex-col lg:justify-between">
+          <div>
+            <Badge tone="primary">Safir Pocket</Badge>
+            <h2 className="mt-5 text-3xl font-semibold tracking-tight text-balance">
+              Votre collection, structurée et synchronisée.
+            </h2>
+            <p className="mt-4 max-w-md text-sm leading-6 text-muted-foreground">
+              Un espace unique pour consulter vos cartes, construire vos decks et rejoindre les
+              services de jeu.
+            </p>
+          </div>
+          <ul className="space-y-4 text-sm">
+            {[
+              { icon: BookOpen, label: 'Catalogue public filtrable' },
+              { icon: Layers3, label: 'Decks liés à votre inventaire' },
+              { icon: ShieldCheck, label: 'Opérations sensibles côté serveur' },
+            ].map(({ icon: Icon, label }) => (
+              <li key={label} className="flex items-center gap-3">
+                <span className="grid size-9 place-items-center rounded-md bg-surface text-primary">
+                  <Icon className="size-4" />
+                </span>
+                {label}
+              </li>
+            ))}
+          </ul>
         </section>
         <section className="p-6 sm:p-10 lg:p-12">
-          <LoginForm />
+          <Suspense>
+            <LoginForm />
+          </Suspense>
         </section>
       </div>
     </main>

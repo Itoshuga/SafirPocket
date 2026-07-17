@@ -19,18 +19,51 @@ const cardSelect = {
   metadata: true,
   artworkPath: true,
   status: true,
+  set: { select: { id: true, name: true, slug: true, code: true } },
 } satisfies Prisma.CardSelect;
 
 @Injectable()
 export class CardsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  listSets() {
-    return this.prisma.cardSet.findMany({
+  async listSets() {
+    const sets = await this.prisma.cardSet.findMany({
       where: { status: 'published' },
       orderBy: [{ displayOrder: 'asc' }, { releaseDate: 'desc' }],
-      include: { _count: { select: { cards: { where: { status: 'published' } } } } },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        description: true,
+        code: true,
+        releaseDate: true,
+        _count: { select: { cards: { where: { status: 'published' } } } },
+      },
     });
+    return sets.map(({ _count, ...set }) => ({ ...set, cardCount: _count.cards }));
+  }
+
+  async facets() {
+    const [sets, rarities, types] = await Promise.all([
+      this.listSets(),
+      this.prisma.card.findMany({
+        where: { status: 'published' },
+        distinct: ['rarity'],
+        select: { rarity: true },
+        orderBy: { rarity: 'asc' },
+      }),
+      this.prisma.card.findMany({
+        where: { status: 'published' },
+        distinct: ['cardType'],
+        select: { cardType: true },
+        orderBy: { cardType: 'asc' },
+      }),
+    ]);
+    return {
+      sets,
+      rarities: rarities.map(({ rarity }) => rarity),
+      types: types.map(({ cardType }) => cardType),
+    };
   }
 
   async getSet(slug: string) {
@@ -99,7 +132,20 @@ export class CardsService {
   async getCard(id: string) {
     const card = await this.prisma.card.findFirst({
       where: { id, status: 'published' },
-      select: { ...cardSelect, set: true, variants: { orderBy: { displayOrder: 'asc' } } },
+      select: {
+        ...cardSelect,
+        variants: {
+          select: {
+            id: true,
+            cardId: true,
+            name: true,
+            slug: true,
+            finish: true,
+            artworkPath: true,
+          },
+          orderBy: { displayOrder: 'asc' },
+        },
+      },
     });
     if (!card)
       throw new NotFoundException({ code: 'CARD_NOT_FOUND', message: 'Carte introuvable.' });

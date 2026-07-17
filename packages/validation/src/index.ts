@@ -35,6 +35,18 @@ export const cardFiltersSchema = paginationSchema.extend({
   sort: z.enum(['name', '-name', 'number', '-createdAt']).default('number'),
 });
 
+export const collectionFiltersSchema = paginationSchema.extend({
+  search: z.string().trim().max(100).optional(),
+  set: z.string().trim().max(80).optional(),
+  rarity: z.string().trim().max(50).optional(),
+  sort: z.enum(['recent', 'name', '-quantity']).default('recent'),
+});
+
+export const rankingsQuerySchema = paginationSchema.extend({
+  search: z.string().trim().max(100).optional(),
+  pageSize: z.coerce.number().int().min(1).max(100).default(25),
+});
+
 export const deckCreateSchema = z.object({
   name: z.string().trim().min(1).max(80),
   description: z.string().trim().max(500).nullable().optional(),
@@ -78,6 +90,8 @@ export const matchActionIntentSchema = z.object({
 });
 
 export type CardFilters = z.infer<typeof cardFiltersSchema>;
+export type CollectionFilters = z.infer<typeof collectionFiltersSchema>;
+export type RankingsQuery = z.infer<typeof rankingsQuerySchema>;
 export type DeckCreateInput = z.infer<typeof deckCreateSchema>;
 export type DeckUpdateInput = z.infer<typeof deckUpdateSchema>;
 export type DeckCardInput = z.infer<typeof deckCardSchema>;

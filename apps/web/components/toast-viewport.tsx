@@ -1,5 +1,6 @@
 'use client';
 
+import { Toast } from '@safir/ui';
 import { useEffect } from 'react';
 import { useAppStore } from '@/stores/app-store';
 
@@ -12,18 +13,12 @@ export function ToastViewport() {
     return () => window.clearTimeout(timer);
   }, [toast, clear]);
   if (!toast) return null;
-  const tone =
-    toast.tone === 'error'
-      ? 'border-red-400/40'
-      : toast.tone === 'success'
-        ? 'border-emerald-400/40'
-        : 'border-sapphire-400/40';
   return (
-    <div
-      className={`fixed bottom-20 left-1/2 z-50 -translate-x-1/2 rounded-xl border ${tone} bg-ink-900 px-5 py-3 text-sm shadow-2xl md:bottom-6`}
-      role="status"
-    >
-      {toast.message}
+    <div className="fixed inset-x-4 bottom-20 z-[60] mx-auto max-w-sm md:bottom-6 md:right-6 md:left-auto md:mx-0 md:w-96">
+      <Toast
+        tone={toast.tone === 'error' ? 'danger' : toast.tone === 'success' ? 'success' : 'neutral'}
+        title={toast.message}
+      />
     </div>
   );
 }

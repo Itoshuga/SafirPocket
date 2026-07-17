@@ -1,124 +1,204 @@
 'use client';
 
+import { zodResolver } from '@hookform/resolvers/zod';
 import { Button, ErrorState, Input } from '@safir/ui';
 import { credentialsSchema } from '@safir/validation';
 import { useSearchParams } from 'next/navigation';
-import { useState, type FormEvent } from 'react';
-import { isSupabaseConfigured, publicEnv } from '@/lib/env';
+import { useState } from 'react';
+import { useForm } from 'react-hook-form';
+import type { z } from 'zod';
+import { getBrowserAppUrl, isSupabaseConfigured } from '@/lib/env';
 import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
+
+type Credentials = z.infer<typeof credentialsSchema>;
+type Mode = 'login' | 'signup' | 'recovery';
 
 export function LoginForm() {
   const search = useSearchParams();
-  const [mode, setMode] = useState<'login' | 'signup'>('login');
-  const [error, setError] = useState<string | null>(
-    search.get('reason') === 'config'
-      ? 'Configurez Supabase pour accéder aux espaces privés.'
-      : null,
-  );
+  const [mode, setMode] = useState<Mode>('login');
   const [message, setMessage] = useState<string | null>(null);
-  const [pending, setPending] = useState(false);
+  const form = useForm<Credentials>({
+    resolver: zodResolver(credentialsSchema),
+    defaultValues: { email: '', password: '' },
+  });
 
-  async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setError(null);
+  function changeMode(next: Mode) {
+    setMode(next);
+    form.clearErrors();
+    setMessage(null);
+  }
+
+  const submit = form.handleSubmit(async (values) => {
+    form.clearErrors('root');
     setMessage(null);
     if (!isSupabaseConfigured) {
-      setError('Renseignez NEXT_PUBLIC_SUPABASE_URL et NEXT_PUBLIC_SUPABASE_ANON_KEY.');
+      form.setError('root', {
+        message: 'Renseignez NEXT_PUBLIC_SUPABASE_URL et NEXT_PUBLIC_SUPABASE_ANON_KEY.',
+      });
       return;
     }
-    const form = new FormData(event.currentTarget);
-    const parsed = credentialsSchema.safeParse({
-      email: form.get('email'),
-      password: form.get('password'),
-    });
-    if (!parsed.success) {
-      setError('Saisissez un e-mail valide et un mot de passe de 8 caractères minimum.');
-      return;
-    }
-    setPending(true);
     const supabase = getSupabaseBrowserClient();
     const result =
       mode === 'login'
-        ? await supabase.auth.signInWithPassword(parsed.data)
+        ? await supabase.auth.signInWithPassword(values)
         : await supabase.auth.signUp({
-            ...parsed.data,
-            options: { emailRedirectTo: `${publicEnv.appUrl}/auth/callback` },
+            ...values,
+            options: { emailRedirectTo: `${getBrowserAppUrl()}/auth/callback` },
           });
-    setPending(false);
-    if (result.error) return setError(result.error.message);
-    if (mode === 'signup' && !result.data.session) {
-      setMessage('Compte créé. Consultez votre e-mail pour confirmer votre inscription.');
-    } else {
-      window.location.assign(search.get('next') ?? '/collection');
+    if (result.error) {
+      form.setError('root', { message: result.error.message });
+      return;
     }
+    if (mode === 'signup' && !result.data.session)
+      setMessage('Compte créé. Consultez votre e-mail pour confirmer votre inscription.');
+    else window.location.assign(search.get('next') ?? '/collection');
+  });
+
+  async function recoverPassword() {
+    form.clearErrors('root');
+    setMessage(null);
+    const parsedEmail = credentialsSchema.shape.email.safeParse(form.getValues('email'));
+    if (!parsedEmail.success) {
+      form.setError('email', { message: 'Adresse e-mail invalide.' });
+      return;
+    }
+    if (!isSupabaseConfigured) {
+      form.setError('root', {
+        message: 'Renseignez NEXT_PUBLIC_SUPABASE_URL et NEXT_PUBLIC_SUPABASE_ANON_KEY.',
+      });
+      return;
+    }
+    const { error } = await getSupabaseBrowserClient().auth.resetPasswordForEmail(
+      parsedEmail.data,
+      { redirectTo: `${getBrowserAppUrl()}/auth/callback?next=/profile` },
+    );
+    if (error) form.setError('root', { message: error.message });
+    else setMessage('Si ce compte existe, un e-mail de réinitialisation vient d’être envoyé.');
   }
 
+  const title =
+    mode === 'login'
+      ? 'Se connecter'
+      : mode === 'signup'
+        ? 'Créer un compte'
+        : 'Réinitialiser le mot de passe';
   return (
     <div>
-      <p className="text-sm font-bold uppercase tracking-[0.2em] text-sapphire-300">Compte Safir</p>
-      <h1 className="mt-2 text-3xl font-black">
-        {mode === 'login' ? 'Heureux de vous revoir' : 'Créer votre collection'}
-      </h1>
-      <p className="mt-2 text-sm text-slate-400">
+      <p className="text-xs font-semibold text-primary">Compte Safir</p>
+      <h1 className="mt-2 text-3xl font-semibold tracking-tight">{title}</h1>
+      <p className="mt-2 text-sm text-muted-foreground">
         {mode === 'login'
-          ? 'Connectez-vous pour retrouver votre progression.'
-          : 'Un compte suffit pour commencer.'}
+          ? 'Retrouvez votre collection et vos decks.'
+          : mode === 'signup'
+            ? 'Créez votre espace personnel sécurisé.'
+            : 'Recevez un lien sécurisé à l’adresse de votre compte.'}
       </p>
-      <div className="mt-7 grid grid-cols-2 rounded-xl bg-ink-950 p-1">
-        {(['login', 'signup'] as const).map((item) => (
-          <button
-            key={item}
-            onClick={() => {
-              setMode(item);
-              setError(null);
-            }}
-            className={`rounded-lg py-2 text-sm font-semibold transition ${mode === item ? 'bg-sapphire-500 text-white' : 'text-slate-400'}`}
-          >
-            {item === 'login' ? 'Connexion' : 'Inscription'}
-          </button>
-        ))}
-      </div>
-      <form className="mt-6 space-y-4" onSubmit={submit}>
+      {search.get('reason') === 'config' ? (
+        <div className="mt-5">
+          <ErrorState message="Configurez Supabase pour accéder aux espaces privés." />
+        </div>
+      ) : null}
+      {mode !== 'recovery' ? (
+        <div
+          className="mt-7 grid grid-cols-2 rounded-md bg-surface-muted p-1"
+          role="tablist"
+          aria-label="Mode d’authentification"
+        >
+          {(['login', 'signup'] as const).map((item) => (
+            <button
+              type="button"
+              role="tab"
+              aria-selected={mode === item}
+              key={item}
+              onClick={() => changeMode(item)}
+              className={`rounded-sm py-2 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring ${mode === item ? 'bg-surface text-foreground shadow-control' : 'text-muted-foreground hover:text-foreground'}`}
+            >
+              {item === 'login' ? 'Connexion' : 'Inscription'}
+            </button>
+          ))}
+        </div>
+      ) : null}
+      <form className="mt-6 space-y-4" onSubmit={submit} noValidate>
         <label className="block text-sm font-medium">
           E-mail
           <Input
-            className="mt-2"
-            name="email"
+            className="mt-1.5"
             type="email"
             autoComplete="email"
-            required
             placeholder="vous@exemple.fr"
+            aria-invalid={Boolean(form.formState.errors.email)}
+            {...form.register('email')}
           />
         </label>
-        <label className="block text-sm font-medium">
-          Mot de passe
-          <Input
-            className="mt-2"
-            name="password"
-            type="password"
-            autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
-            minLength={8}
-            required
-          />
-        </label>
-        {error ? <ErrorState message={error} /> : null}
+        {form.formState.errors.email ? (
+          <p className="-mt-2 text-xs text-danger">Saisissez une adresse e-mail valide.</p>
+        ) : null}
+        {mode !== 'recovery' ? (
+          <>
+            <label className="block text-sm font-medium">
+              Mot de passe
+              <Input
+                className="mt-1.5"
+                type="password"
+                autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+                aria-invalid={Boolean(form.formState.errors.password)}
+                {...form.register('password')}
+              />
+            </label>
+            {form.formState.errors.password ? (
+              <p className="-mt-2 text-xs text-danger">
+                Le mot de passe doit contenir au moins 8 caractères.
+              </p>
+            ) : null}
+          </>
+        ) : null}
+        {form.formState.errors.root?.message ? (
+          <ErrorState message={form.formState.errors.root.message} />
+        ) : null}
         {message ? (
-          <p className="rounded-xl border border-emerald-400/30 bg-emerald-950/20 p-4 text-sm text-emerald-200">
+          <p
+            role="status"
+            className="rounded-md border border-success/20 bg-success/5 p-4 text-sm text-success"
+          >
             {message}
           </p>
         ) : null}
-        <Button className="w-full" type="submit" disabled={pending}>
-          {pending ? 'Veuillez patienter…' : mode === 'login' ? 'Se connecter' : 'Créer mon compte'}
-        </Button>
+        {mode === 'recovery' ? (
+          <Button className="w-full" type="button" onClick={() => void recoverPassword()}>
+            Envoyer le lien
+          </Button>
+        ) : (
+          <Button
+            className="w-full"
+            type="submit"
+            loading={form.formState.isSubmitting}
+            loadingLabel="Veuillez patienter…"
+          >
+            {mode === 'login' ? 'Se connecter' : 'Créer mon compte'}
+          </Button>
+        )}
       </form>
-      <div className="my-5 flex items-center gap-3 text-xs text-slate-600">
-        <span className="h-px flex-1 bg-white/8" />
-        ou
-        <span className="h-px flex-1 bg-white/8" />
-      </div>
-      <Button className="w-full bg-white/5 text-slate-400 shadow-none hover:bg-white/8" disabled>
-        Google OAuth · bientôt
-      </Button>
+      {mode === 'login' ? (
+        <button
+          type="button"
+          className="mt-4 text-sm font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+          onClick={() => changeMode('recovery')}
+        >
+          Mot de passe oublié ?
+        </button>
+      ) : mode === 'recovery' ? (
+        <button
+          type="button"
+          className="mt-4 text-sm font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+          onClick={() => changeMode('login')}
+        >
+          Retour à la connexion
+        </button>
+      ) : null}
+      <p className="mt-5 text-xs leading-5 text-muted-foreground">
+        L’authentification est gérée par Supabase. Safir Pocket ne stocke jamais votre mot de passe
+        dans l’application.
+      </p>
     </div>
   );
 }

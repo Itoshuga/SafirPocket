@@ -14,3 +14,6 @@ allowBuilds:
   sharp: true
   supabase: true
   unrs-resolver: true
+
+minimumReleaseAgeExclude:
+  - lucide-react@1.25.0

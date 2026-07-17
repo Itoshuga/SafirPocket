@@ -47,9 +47,9 @@ export class MatchmakingGateway implements OnGatewayConnection, OnGatewayDisconn
   server!: Server<ClientToServerEvents, ServerToClientEvents, Record<string, never>, SocketData>;
 
   constructor(
-    private readonly verifier: JwtVerifierService,
-    private readonly prisma: PrismaService,
-    private readonly matches: MatchesService,
+    @Inject(JwtVerifierService) private readonly verifier: JwtVerifierService,
+    @Inject(PrismaService) private readonly prisma: PrismaService,
+    @Inject(MatchesService) private readonly matches: MatchesService,
     @Inject(MATCHMAKING_QUEUE) private readonly queue: MatchmakingQueue,
   ) {}
 

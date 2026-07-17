@@ -1,27 +1,25 @@
 import type { Metadata } from 'next';
-import { PageContainer } from '@safir/ui';
+import { Button, PageContainer, PageHeader } from '@safir/ui';
+import { Plus } from 'lucide-react';
 import Link from 'next/link';
 import { DeckList } from '@/components/deck-list';
-import { PageHeading } from '@/components/page-heading';
 
 export const metadata: Metadata = { title: 'Decks' };
 export default function DecksPage() {
   return (
     <PageContainer>
-      <PageHeading
+      <PageHeader
         eyebrow="Construction"
         title="Mes decks"
-        action={
-          <Link
-            href="/decks/new"
-            className="rounded-xl bg-sapphire-500 px-5 py-3 text-sm font-bold shadow-lg shadow-sapphire-900/30"
-          >
-            Nouveau deck
-          </Link>
+        description="Créez et maintenez des listes composées uniquement de cartes disponibles dans votre collection."
+        actions={
+          <Button asChild>
+            <Link href="/decks/new">
+              <Plus className="size-4" /> Nouveau deck
+            </Link>
+          </Button>
         }
-      >
-        Les limites officielles seront activées lorsqu’elles seront connues.
-      </PageHeading>
+      />
       <DeckList />
     </PageContainer>
   );

@@ -1,16 +1,16 @@
 import type { Metadata } from 'next';
-import { PageContainer } from '@safir/ui';
+import { PageContainer, PageHeader } from '@safir/ui';
 import { MatchmakingPanel } from '@/components/matchmaking-panel';
-import { PageHeading } from '@/components/page-heading';
 
 export const metadata: Metadata = { title: 'Jouer' };
 export default function PlayPage() {
   return (
-    <PageContainer className="max-w-4xl">
-      <PageHeading eyebrow="Temps réel" title="Arène Safir">
-        La file locale en mémoire est prête; Redis pourra la remplacer sans changer les contrats
-        Socket.IO.
-      </PageHeading>
+    <PageContainer className="max-w-5xl">
+      <PageHeader
+        eyebrow="Temps réel"
+        title="Jouer"
+        description="Rejoignez la file de matchmaking avec un deck contrôlé par le serveur. Aucun résultat de partie n’est simulé dans le navigateur."
+      />
       <MatchmakingPanel />
     </PageContainer>
   );

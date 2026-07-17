@@ -1,0 +1,17 @@
+export const queryKeys = {
+  cards: (filters: string) => ['cards', filters] as const,
+  card: (id: string) => ['card', id] as const,
+  cardFacets: ['card-facets'] as const,
+  collection: (filters: string) => ['collection', filters] as const,
+  collectionSummary: ['collection-summary'] as const,
+  decks: ['decks'] as const,
+  deck: (id: string) => ['deck', id] as const,
+  boosterProducts: ['booster-products'] as const,
+  boosterOpenings: ['booster-openings'] as const,
+  wallets: ['wallets'] as const,
+  profile: ['profile'] as const,
+  profileSummary: ['profile-summary'] as const,
+  rankings: (filters: string) => ['rankings', filters] as const,
+  myRanking: ['my-ranking'] as const,
+  adminStatus: ['admin-status'] as const,
+} as const;

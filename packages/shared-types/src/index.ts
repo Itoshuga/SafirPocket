@@ -7,6 +7,7 @@ export interface PublicUser {
   avatarPath: string | null;
   bio: string | null;
   role: UserRole;
+  createdAt?: string;
 }
 
 export interface PaginationQuery {
@@ -30,6 +31,7 @@ export interface ApiErrorBody {
     message: string;
     requestId?: string;
     details?: Record<string, unknown>;
+    fieldErrors?: Record<string, string[]>;
   };
 }
 
@@ -56,6 +58,7 @@ export interface CardSummary {
   cost: number | null;
   artworkPath: string | null;
   status: PublicationStatus;
+  set?: Pick<CardSetSummary, 'id' | 'name' | 'slug' | 'code'>;
 }
 
 export interface CardDetail extends CardSummary {
@@ -64,6 +67,22 @@ export interface CardDetail extends CardSummary {
   stats: Record<string, unknown>;
   effects: CardEffectDefinition[];
   metadata: Record<string, unknown>;
+  variants: CardVariantSummary[];
+}
+
+export interface CardVariantSummary {
+  id: string;
+  cardId: string;
+  name: string;
+  slug: string;
+  finish: string;
+  artworkPath: string | null;
+}
+
+export interface CardFacets {
+  sets: CardSetSummary[];
+  rarities: string[];
+  types: string[];
 }
 
 export interface CardEffectDefinition {
@@ -79,7 +98,24 @@ export interface DeckSummary {
   isActive: boolean;
   visibility: 'private' | 'unlisted' | 'public';
   format: string;
-  cardCount?: number;
+  cardCount: number;
+  uniqueCardCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface DeckCardEntry {
+  cardVariantId: string;
+  quantity: number;
+  cardVariant: CardVariantSummary & { card: CardSummary };
+}
+
+export interface DeckDetail extends DeckSummary {
+  cards: DeckCardEntry[];
+  validation: {
+    valid: boolean;
+    warnings: string[];
+  };
 }
 
 export interface CollectionEntry {
@@ -88,11 +124,127 @@ export interface CollectionEntry {
   lockedQuantity: number;
   firstObtainedAt: string;
   lastObtainedAt: string;
-  variant?: {
+  variant: {
     id: string;
     name: string;
+    finish: string;
+    artworkPath: string | null;
     card: CardSummary;
   };
+}
+
+export interface CollectionSummary {
+  totalCopies: number;
+  uniqueVariants: number;
+  uniqueCards: number;
+  completionRate: number;
+  publishedCardCount: number;
+  favoriteRarity: string | null;
+  sets: Array<{
+    id: string;
+    name: string;
+    slug: string;
+    code: string;
+    ownedCards: number;
+    cardCount: number;
+    missingCards: number;
+    completionRate: number;
+  }>;
+}
+
+export interface CardCollectionContext {
+  totalQuantity: number;
+  lockedQuantity: number;
+  variants: Array<{
+    cardVariantId: string;
+    variantName: string;
+    quantity: number;
+    lockedQuantity: number;
+  }>;
+  decks: Array<{
+    id: string;
+    name: string;
+    quantity: number;
+    variantName: string;
+  }>;
+}
+
+export interface ProfileSummary {
+  collection: Omit<CollectionSummary, 'sets'>;
+  deckCount: number;
+  matchCount: number;
+  wins: number;
+  currentRating: number | null;
+  currentRank: number | null;
+}
+
+export interface BoosterProductSummary {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  artworkPath: string | null;
+  priceCurrency: string;
+  priceAmount: string;
+  cardsPerPack: number;
+  availableUntil: string | null;
+  possibleCards: Array<{
+    variantId: string;
+    variantName: string;
+    card: CardSummary;
+  }>;
+}
+
+export interface BoosterOpening {
+  id: string;
+  product: Pick<BoosterProductSummary, 'id' | 'name' | 'slug' | 'artworkPath'>;
+  status: 'pending' | 'completed' | 'failed';
+  priceCurrency: string;
+  priceAmount: string;
+  openedAt: string | null;
+  cards: Array<{
+    quantity: number;
+    variant: CardVariantSummary & { card: CardSummary };
+  }>;
+}
+
+export interface WalletSummary {
+  currencyCode: string;
+  balance: string;
+  updatedAt: string;
+}
+
+export interface RankedSeasonSummary {
+  id: string;
+  slug: string;
+  name: string;
+  startsAt: string;
+  endsAt: string;
+}
+
+export interface RankingEntry {
+  rank: number;
+  rating: number;
+  wins: number;
+  losses: number;
+  draws: number;
+  user: PublicUser;
+}
+
+export interface RankingsResponse extends PaginatedResponse<RankingEntry> {
+  season: RankedSeasonSummary | null;
+}
+
+export interface AdminOverview {
+  status: 'ready';
+  counts: {
+    publishedSets: number;
+    publishedCards: number;
+    publishedBoosters: number;
+    activeMatches: number;
+    profiles: number;
+  };
+  generatedAt: string;
 }
 
 export interface MatchSnapshot {

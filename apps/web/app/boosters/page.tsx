@@ -1,16 +1,16 @@
 import type { Metadata } from 'next';
-import { PageContainer } from '@safir/ui';
+import { PageContainer, PageHeader } from '@safir/ui';
 import { BoosterShelf } from '@/components/booster-shelf';
-import { PageHeading } from '@/components/page-heading';
 
 export const metadata: Metadata = { title: 'Boosters' };
 export default function BoostersPage() {
   return (
     <PageContainer>
-      <PageHeading eyebrow="Ouverture serveur" title="Boosters">
-        Le navigateur ne reçoit ni probabilités ni choix de tirage. Le résultat apparaît après
-        validation de la transaction complète.
-      </PageHeading>
+      <PageHeader
+        eyebrow="Ouverture serveur"
+        title="Boosters"
+        description="Choisissez un produit disponible. Le débit et l’attribution des cartes sont atomiques et autoritaires côté serveur."
+      />
       <BoosterShelf />
     </PageContainer>
   );

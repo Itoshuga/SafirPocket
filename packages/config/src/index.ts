@@ -4,6 +4,16 @@ export const apiEnvironmentSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   API_PORT: z.coerce.number().int().min(1).max(65_535).default(3001),
   WEB_ORIGIN: z.url().default('http://localhost:3000'),
+  WEB_ORIGINS: z.preprocess(
+    (value) =>
+      typeof value === 'string'
+        ? value
+            .split(',')
+            .map((origin) => origin.trim())
+            .filter(Boolean)
+        : value,
+    z.array(z.url()).default([]),
+  ),
   SUPABASE_URL: z.url(),
   SUPABASE_ANON_KEY: z.string().min(1),
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),

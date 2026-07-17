@@ -1,79 +1,84 @@
 'use client';
 
-import { Button, Card, ErrorState, Input } from '@safir/ui';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { Button, Card, ErrorState, Input, Select, Textarea } from '@safir/ui';
 import { deckCreateSchema } from '@safir/validation';
 import { useRouter } from 'next/navigation';
-import { useState, type FormEvent } from 'react';
-import { apiFetch } from '@/lib/api-client';
+import { useForm } from 'react-hook-form';
+import type { z } from 'zod';
+import { ApiClientError, apiFetch } from '@/lib/api-client';
 
 export function DeckForm() {
+  const deckFormSchema = deckCreateSchema.omit({ metadata: true });
+  type DeckFormInput = z.input<typeof deckFormSchema>;
+  type DeckFormOutput = z.output<typeof deckFormSchema>;
   const router = useRouter();
-  const [error, setError] = useState<string | null>(null);
-  const [pending, setPending] = useState(false);
-  async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    const parsed = deckCreateSchema.safeParse({
-      name: form.get('name'),
-      description: form.get('description') || null,
-      visibility: form.get('visibility'),
-      format: form.get('format'),
-    });
-    if (!parsed.success) return setError('Vérifiez le nom et les options du deck.');
-    setPending(true);
+  const form = useForm<DeckFormInput, unknown, DeckFormOutput>({
+    resolver: zodResolver(deckFormSchema),
+    defaultValues: { name: '', description: null, visibility: 'private', format: 'open' },
+  });
+  const submit = form.handleSubmit(async (values) => {
+    form.clearErrors('root');
     try {
       const deck = await apiFetch<{ id: string }>('/api/v1/me/decks', {
         method: 'POST',
-        body: JSON.stringify(parsed.data),
+        body: JSON.stringify({ ...values, metadata: {} }),
       });
       router.push(`/decks/${deck.id}`);
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Création impossible.');
-      setPending(false);
+    } catch (error) {
+      form.setError('root', {
+        message: error instanceof ApiClientError ? error.message : 'Création impossible.',
+      });
     }
-  }
+  });
   return (
     <Card>
-      <form className="space-y-5" onSubmit={submit}>
-        <label className="block text-sm font-semibold">
+      <form className="space-y-5" onSubmit={submit} noValidate>
+        <label className="block text-sm font-medium">
           Nom
           <Input
-            name="name"
-            className="mt-2"
-            required
-            maxLength={80}
+            className="mt-1.5"
             placeholder="Gardes du prisme"
+            aria-invalid={Boolean(form.formState.errors.name)}
+            {...form.register('name')}
           />
         </label>
-        <label className="block text-sm font-semibold">
+        {form.formState.errors.name ? (
+          <p className="-mt-3 text-xs text-danger">{form.formState.errors.name.message}</p>
+        ) : null}
+        <label className="block text-sm font-medium">
           Description
-          <textarea
-            name="description"
+          <Textarea
+            className="mt-1.5"
             maxLength={500}
-            className="mt-2 min-h-28 w-full rounded-xl border border-white/10 bg-ink-800/70 p-4 outline-none focus:border-sapphire-400"
+            {...form.register('description', { setValueAs: (value) => value || null })}
           />
         </label>
         <div className="grid gap-4 sm:grid-cols-2">
-          <label className="text-sm font-semibold">
+          <label className="text-sm font-medium">
             Format
-            <Input name="format" className="mt-2" defaultValue="open" />
+            <Input className="mt-1.5" {...form.register('format')} />
           </label>
-          <label className="text-sm font-semibold">
+          <label className="text-sm font-medium">
             Visibilité
-            <select
-              name="visibility"
-              className="mt-2 min-h-11 w-full rounded-xl border border-white/10 bg-ink-800 px-4"
-            >
+            <Select className="mt-1.5" {...form.register('visibility')}>
               <option value="private">Privé</option>
               <option value="unlisted">Non répertorié</option>
               <option value="public">Public</option>
-            </select>
+            </Select>
           </label>
         </div>
-        {error ? <ErrorState message={error} /> : null}
-        <Button type="submit" disabled={pending}>
-          {pending ? 'Création…' : 'Créer le deck'}
-        </Button>
+        {form.formState.errors.root?.message ? (
+          <ErrorState message={form.formState.errors.root.message} />
+        ) : null}
+        <div className="flex flex-wrap gap-2">
+          <Button type="submit" loading={form.formState.isSubmitting} loadingLabel="Création…">
+            Créer le deck
+          </Button>
+          <Button type="button" variant="ghost" onClick={() => router.push('/decks')}>
+            Annuler
+          </Button>
+        </div>
       </form>
     </Card>
   );
