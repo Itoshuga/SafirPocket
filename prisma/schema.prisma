@@ -1,0 +1,409 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../apps/api/src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  user
+  moderator
+  admin
+
+  @@map("user_role")
+}
+
+enum PublicationStatus {
+  draft
+  published
+  archived
+
+  @@map("publication_status")
+}
+
+enum DeckVisibility {
+  private
+  unlisted
+  public
+
+  @@map("deck_visibility")
+}
+
+enum PackOpeningStatus {
+  pending
+  completed
+  failed
+
+  @@map("pack_opening_status")
+}
+
+enum MissionStatus {
+  active
+  completed
+  claimed
+  expired
+
+  @@map("mission_status")
+}
+
+enum MatchStatus {
+  pending
+  active
+  completed
+  cancelled
+
+  @@map("match_status")
+}
+
+model Profile {
+  id          String   @id @db.Uuid
+  username    String   @unique(map: "profiles_username_key")
+  displayName String?  @map("display_name")
+  avatarPath  String?  @map("avatar_path")
+  bio         String?
+  role        UserRole @default(user)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  decks                Deck[]
+  userCards            UserCard[]
+  packOpenings         PackOpening[]
+  wallets              Wallet[]
+  currencyTransactions CurrencyTransaction[]
+  userMissions         UserMission[]
+  matchPlayers         MatchPlayer[]
+  matchEvents          MatchEvent[]
+  rankedRatings        RankedRating[]
+
+  @@map("profiles")
+}
+
+model CardSet {
+  id           String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name         String
+  slug         String            @unique
+  code         String            @unique
+  description  String?
+  releaseDate  DateTime?         @map("release_date") @db.Date
+  artworkPath  String?           @map("artwork_path")
+  status       PublicationStatus @default(draft)
+  displayOrder Int               @default(0) @map("display_order")
+  metadata     Json              @default("{}")
+  createdAt    DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime          @default(now()) @map("updated_at") @db.Timestamptz(6)
+  cards        Card[]
+
+  @@map("card_sets")
+}
+
+model Card {
+  id               String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  setId            String            @map("set_id") @db.Uuid
+  name             String
+  slug             String
+  description      String?
+  collectionNumber String            @map("collection_number")
+  rarity           String
+  cardType         String            @map("card_type")
+  cost             Int?
+  effectText       String?           @map("effect_text")
+  effects          Json              @default("[]")
+  stats            Json              @default("{}")
+  metadata         Json              @default("{}")
+  artworkPath      String?           @map("artwork_path")
+  status           PublicationStatus @default(draft)
+  displayOrder     Int               @default(0) @map("display_order")
+  createdAt        DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime          @default(now()) @map("updated_at") @db.Timestamptz(6)
+  set              CardSet           @relation(fields: [setId], references: [id], onDelete: Restrict)
+  variants         CardVariant[]
+
+  @@unique([setId, slug])
+  @@unique([setId, collectionNumber])
+  @@index([status, cardType, rarity])
+  @@map("cards")
+}
+
+model CardVariant {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  cardId       String   @map("card_id") @db.Uuid
+  name         String
+  slug         String
+  finish       String   @default("standard")
+  artworkPath  String?  @map("artwork_path")
+  metadata     Json     @default("{}")
+  displayOrder Int      @default(0) @map("display_order")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+  card         Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
+
+  userCards        UserCard[]
+  deckCards        DeckCard[]
+  packOpeningCards PackOpeningCard[]
+
+  @@unique([cardId, slug])
+  @@map("card_variants")
+}
+
+model UserCard {
+  userId          String      @map("user_id") @db.Uuid
+  cardVariantId   String      @map("card_variant_id") @db.Uuid
+  quantity        Int         @default(0)
+  lockedQuantity  Int         @default(0) @map("locked_quantity")
+  firstObtainedAt DateTime    @default(now()) @map("first_obtained_at") @db.Timestamptz(6)
+  lastObtainedAt  DateTime    @default(now()) @map("last_obtained_at") @db.Timestamptz(6)
+  user            Profile     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cardVariant     CardVariant @relation(fields: [cardVariantId], references: [id], onDelete: Restrict)
+
+  @@id([userId, cardVariantId])
+  @@map("user_cards")
+}
+
+model Deck {
+  id          String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ownerId     String         @map("owner_id") @db.Uuid
+  name        String
+  description String?
+  isActive    Boolean        @default(false) @map("is_active")
+  visibility  DeckVisibility @default(private)
+  format      String         @default("open")
+  metadata    Json           @default("{}")
+  createdAt   DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime       @default(now()) @map("updated_at") @db.Timestamptz(6)
+  owner       Profile        @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  cards       DeckCard[]
+  matchPlayers MatchPlayer[]
+
+  @@index([ownerId, updatedAt])
+  @@map("decks")
+}
+
+model DeckCard {
+  deckId        String      @map("deck_id") @db.Uuid
+  cardVariantId String      @map("card_variant_id") @db.Uuid
+  quantity      Int
+  createdAt     DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime    @default(now()) @map("updated_at") @db.Timestamptz(6)
+  deck          Deck        @relation(fields: [deckId], references: [id], onDelete: Cascade)
+  cardVariant   CardVariant @relation(fields: [cardVariantId], references: [id], onDelete: Restrict)
+
+  @@id([deckId, cardVariantId])
+  @@map("deck_cards")
+}
+
+model BoosterProduct {
+  id             String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name           String
+  slug           String            @unique
+  description    String?
+  artworkPath    String?           @map("artwork_path")
+  priceCurrency  String            @map("price_currency")
+  priceAmount    BigInt            @map("price_amount")
+  cardsPerPack   Int               @map("cards_per_pack")
+  status         PublicationStatus @default(draft)
+  availableFrom  DateTime?         @map("available_from") @db.Timestamptz(6)
+  availableUntil DateTime?         @map("available_until") @db.Timestamptz(6)
+  metadata       Json              @default("{}")
+  createdAt      DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime          @default(now()) @map("updated_at") @db.Timestamptz(6)
+  slots          BoosterProductSlot[]
+  openings       PackOpening[]
+
+  @@map("booster_products")
+}
+
+model BoosterProductSlot {
+  id               String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  boosterProductId String         @map("booster_product_id") @db.Uuid
+  slotIndex        Int            @map("slot_index")
+  quantity         Int            @default(1)
+  weightConfig     Json           @map("weight_config")
+  createdAt        DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  boosterProduct   BoosterProduct @relation(fields: [boosterProductId], references: [id], onDelete: Cascade)
+
+  @@unique([boosterProductId, slotIndex])
+  @@map("booster_product_slots")
+}
+
+model PackOpening {
+  id               String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId           String            @map("user_id") @db.Uuid
+  boosterProductId String            @map("booster_product_id") @db.Uuid
+  idempotencyKey   String            @map("idempotency_key") @db.Uuid
+  status           PackOpeningStatus @default(pending)
+  priceCurrency    String            @map("price_currency")
+  priceAmount      BigInt            @map("price_amount")
+  errorCode        String?           @map("error_code")
+  openedAt         DateTime?         @map("opened_at") @db.Timestamptz(6)
+  createdAt        DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  user             Profile           @relation(fields: [userId], references: [id], onDelete: Restrict)
+  boosterProduct   BoosterProduct    @relation(fields: [boosterProductId], references: [id], onDelete: Restrict)
+  cards            PackOpeningCard[]
+
+  @@unique([userId, idempotencyKey])
+  @@map("pack_openings")
+}
+
+model PackOpeningCard {
+  id              String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  packOpeningId   String        @map("pack_opening_id") @db.Uuid
+  cardVariantId   String        @map("card_variant_id") @db.Uuid
+  slotIndex       Int           @map("slot_index")
+  quantity        Int           @default(1)
+  probabilityData Json          @default("{}") @map("probability_data")
+  createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  packOpening     PackOpening   @relation(fields: [packOpeningId], references: [id], onDelete: Cascade)
+  cardVariant     CardVariant   @relation(fields: [cardVariantId], references: [id], onDelete: Restrict)
+
+  @@unique([packOpeningId, slotIndex, cardVariantId])
+  @@map("pack_opening_cards")
+}
+
+model Wallet {
+  userId       String   @map("user_id") @db.Uuid
+  currencyCode String   @map("currency_code")
+  balance      BigInt   @default(0)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+  user         Profile  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, currencyCode])
+  @@map("wallets")
+}
+
+model CurrencyTransaction {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId         String   @map("user_id") @db.Uuid
+  currencyCode   String   @map("currency_code")
+  amount         BigInt
+  balanceAfter   BigInt   @map("balance_after")
+  reason         String
+  referenceType  String?  @map("reference_type")
+  referenceId    String?  @map("reference_id")
+  idempotencyKey String   @map("idempotency_key") @db.Uuid
+  metadata       Json     @default("{}")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  user           Profile  @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@unique([userId, idempotencyKey])
+  @@index([userId, currencyCode, createdAt])
+  @@map("currency_transactions")
+}
+
+model Mission {
+  id          String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  slug        String            @unique
+  name        String
+  description String?
+  type        String
+  target      Json
+  rewards     Json
+  status      PublicationStatus @default(draft)
+  startsAt    DateTime?         @map("starts_at") @db.Timestamptz(6)
+  endsAt      DateTime?         @map("ends_at") @db.Timestamptz(6)
+  createdAt   DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime          @default(now()) @map("updated_at") @db.Timestamptz(6)
+  users       UserMission[]
+
+  @@map("missions")
+}
+
+model UserMission {
+  userId      String        @map("user_id") @db.Uuid
+  missionId   String        @map("mission_id") @db.Uuid
+  status      MissionStatus @default(active)
+  progress    Json          @default("{}")
+  completedAt DateTime?     @map("completed_at") @db.Timestamptz(6)
+  claimedAt   DateTime?     @map("claimed_at") @db.Timestamptz(6)
+  createdAt   DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime      @default(now()) @map("updated_at") @db.Timestamptz(6)
+  user        Profile       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mission     Mission       @relation(fields: [missionId], references: [id], onDelete: Cascade)
+
+  @@id([userId, missionId])
+  @@map("user_missions")
+}
+
+model Match {
+  id                String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  status            MatchStatus @default(pending)
+  format            String
+  rulesVersion      String      @map("rules_version")
+  currentSequence   Int         @default(0) @map("current_sequence")
+  state             Json        @default("{}")
+  winnerId          String?     @map("winner_id") @db.Uuid
+  resultReason      String?     @map("result_reason")
+  startedAt         DateTime?   @map("started_at") @db.Timestamptz(6)
+  finishedAt        DateTime?   @map("finished_at") @db.Timestamptz(6)
+  createdAt         DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime    @default(now()) @map("updated_at") @db.Timestamptz(6)
+  players           MatchPlayer[]
+  events            MatchEvent[]
+
+  @@index([status, createdAt])
+  @@map("matches")
+}
+
+model MatchPlayer {
+  matchId    String   @map("match_id") @db.Uuid
+  userId     String   @map("user_id") @db.Uuid
+  deckId     String?  @map("deck_id") @db.Uuid
+  seat       Int
+  isReady    Boolean  @default(false) @map("is_ready")
+  snapshot   Json     @default("{}")
+  joinedAt   DateTime @default(now()) @map("joined_at") @db.Timestamptz(6)
+  match      Match    @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  user       Profile  @relation(fields: [userId], references: [id], onDelete: Restrict)
+  deck       Deck?    @relation(fields: [deckId], references: [id], onDelete: SetNull)
+
+  @@id([matchId, userId])
+  @@unique([matchId, seat])
+  @@map("match_players")
+}
+
+model MatchEvent {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  matchId      String   @map("match_id") @db.Uuid
+  sequence     Int
+  actorId      String?  @map("actor_id") @db.Uuid
+  eventType    String   @map("event_type")
+  payload      Json
+  rulesVersion String   @map("rules_version")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  match        Match    @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  actor        Profile? @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@unique([matchId, sequence])
+  @@map("match_events")
+}
+
+model RankedSeason {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  slug      String   @unique
+  name      String
+  startsAt  DateTime @map("starts_at") @db.Timestamptz(6)
+  endsAt    DateTime @map("ends_at") @db.Timestamptz(6)
+  rules     Json     @default("{}")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  ratings   RankedRating[]
+
+  @@map("ranked_seasons")
+}
+
+model RankedRating {
+  seasonId  String       @map("season_id") @db.Uuid
+  userId    String       @map("user_id") @db.Uuid
+  rating    Int          @default(1000)
+  wins      Int          @default(0)
+  losses    Int          @default(0)
+  draws     Int          @default(0)
+  updatedAt DateTime     @default(now()) @map("updated_at") @db.Timestamptz(6)
+  season    RankedSeason @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  user      Profile      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([seasonId, userId])
+  @@index([seasonId, rating])
+  @@map("ranked_ratings")
+}

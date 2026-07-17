@@ -1,0 +1,37 @@
+import {
+  CanActivate,
+  type ExecutionContext,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
+import type { Request } from 'express';
+import { IS_PUBLIC_KEY } from '../common/auth/public.decorator.js';
+import { JwtVerifierService } from './jwt-verifier.service.js';
+
+@Injectable()
+export class SupabaseAuthGuard implements CanActivate {
+  constructor(
+    private readonly reflector: Reflector,
+    private readonly verifier: JwtVerifierService,
+  ) {}
+
+  async canActivate(context: ExecutionContext): Promise<boolean> {
+    const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+    if (isPublic) return true;
+
+    const request = context.switchToHttp().getRequest<Request>();
+    const authorization = request.header('authorization');
+    if (!authorization?.startsWith('Bearer ')) {
+      throw new UnauthorizedException({
+        code: 'AUTHENTICATION_REQUIRED',
+        message: 'Authentification requise.',
+      });
+    }
+    request.user = await this.verifier.verify(authorization.slice(7));
+    return true;
+  }
+}

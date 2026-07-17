@@ -1,0 +1,43 @@
+{
+  "name": "safir-pocket",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@11.12.0",
+  "engines": {
+    "node": ">=24.0.0 <25"
+  },
+  "scripts": {
+    "dev": "turbo dev",
+    "dev:web": "pnpm --filter @safir/web dev",
+    "dev:api": "pnpm --filter @safir/api dev",
+    "build": "turbo build",
+    "lint": "eslint . --max-warnings 0",
+    "typecheck": "turbo typecheck",
+    "test": "turbo test",
+    "test:e2e": "turbo test:e2e",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "db:start": "supabase start",
+    "db:stop": "supabase stop",
+    "db:status": "supabase status",
+    "db:migration:new": "supabase migration new",
+    "db:migrations:list": "supabase migration list",
+    "db:push": "supabase db push",
+    "db:types": "supabase gen types typescript --local > packages/shared-types/src/database.generated.ts",
+    "prisma:generate": "prisma generate",
+    "redis:start": "docker compose up -d redis",
+    "redis:stop": "docker compose stop redis"
+  },
+  "devDependencies": {
+    "@eslint/js": "9.39.5",
+    "@types/node": "24.13.3",
+    "eslint": "9.39.5",
+    "eslint-config-next": "16.2.10",
+    "prettier": "3.9.5",
+    "prisma": "7.8.0",
+    "supabase": "2.109.1",
+    "turbo": "2.10.5",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.64.0"
+  }
+}

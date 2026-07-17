@@ -1,0 +1,9 @@
+{
+  "extends": "@safir/typescript-config/nestjs.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "outDir": "dist",
+    "rootDir": "."
+  },
+  "include": ["src/**/*.ts", "test/**/*.ts", "*.config.ts"]
+}
