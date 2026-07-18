@@ -17,7 +17,7 @@ export function CardDetailView({ id }: { id: string }) {
     queryFn: () => apiFetch<CardDetail>(`/api/v1/cards/${id}`),
   });
   const context = useQuery({
-    queryKey: ['card-collection-context', id],
+    queryKey: queryKeys.cardCollectionContext(id),
     queryFn: () => apiFetch<CardCollectionContext>(`/api/v1/me/collection/card/${id}`),
     enabled: Boolean(user),
   });
@@ -46,7 +46,7 @@ export function CardDetailView({ id }: { id: string }) {
       <div className="mt-6 grid gap-8 lg:grid-cols-[20rem_minmax(0,1fr)] xl:grid-cols-[22rem_minmax(0,1fr)]">
         <div>
           <CardImage
-            artworkPath={card.artworkPath}
+            artworkPath={card.imageUrl ?? card.artworkPath}
             alt={`Illustration de ${card.name}`}
             priority
             className="w-full shadow-card"
@@ -87,14 +87,16 @@ export function CardDetailView({ id }: { id: string }) {
         </div>
         <div>
           <div className="flex flex-wrap items-center gap-2">
-            <Badge tone="primary">{card.rarity}</Badge>
-            <Badge>{card.cardType}</Badge>
-            {card.set ? <Badge>{card.set.name}</Badge> : null}
+            <Badge tone="primary">{card.rarity.name}</Badge>
+            {card.types.map((type) => (
+              <Badge key={type.id}>{type.name}</Badge>
+            ))}
+            <Badge>{card.season.name}</Badge>
           </div>
           <h1 className="mt-4 text-3xl font-semibold tracking-tight sm:text-4xl">{card.name}</h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            {card.set?.code ? `${card.set.code} · ` : ''}
-            {card.collectionNumber}
+            {card.season.code ? `${card.season.code} · ` : ''}
+            {card.number}
             {card.cost !== null ? ` · Coût ${card.cost}` : ''}
           </p>
           <p className="mt-6 max-w-3xl leading-7 text-muted-foreground">
@@ -112,25 +114,30 @@ export function CardDetailView({ id }: { id: string }) {
               <DataList
                 className="mt-3"
                 items={[
-                  { label: 'Extension', value: card.set?.name ?? '—' },
-                  { label: 'Numéro', value: card.collectionNumber },
-                  { label: 'Rareté', value: card.rarity },
-                  { label: 'Type', value: card.cardType },
+                  { label: 'Saison', value: card.season.name },
+                  { label: 'Numéro', value: card.number },
+                  { label: 'Rareté', value: card.rarity.name },
+                  { label: 'Types', value: card.types.map((type) => type.name).join(', ') },
                 ]}
               />
             </Panel>
             <Panel>
               <h2 className="text-sm font-semibold">Caractéristiques</h2>
-              {statItems.length ? (
+              {statItems.length || card.attack || card.defense || card.value ? (
                 <DataList
                   className="mt-3"
-                  items={statItems.map(([label, value]) => ({
-                    label,
-                    value:
-                      typeof value === 'string' || typeof value === 'number'
-                        ? String(value)
-                        : JSON.stringify(value),
-                  }))}
+                  items={[
+                    { label: 'Attaque', value: String(card.attack) },
+                    { label: 'Défense', value: String(card.defense) },
+                    { label: 'Valeur', value: String(card.value) },
+                    ...statItems.map(([label, value]) => ({
+                      label,
+                      value:
+                        typeof value === 'string' || typeof value === 'number'
+                          ? String(value)
+                          : JSON.stringify(value),
+                    })),
+                  ]}
                 />
               ) : (
                 <p className="mt-3 text-sm text-muted-foreground">

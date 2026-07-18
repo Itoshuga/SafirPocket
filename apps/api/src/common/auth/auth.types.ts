@@ -1,9 +1,17 @@
-import type { UserRole } from '@safir/shared-types';
+import type { AccountStatus, AppRole } from '@safir/shared-types';
+
+export interface VerifiedAuthUser {
+  id: string;
+  email: string | null;
+}
 
 export interface AuthenticatedUser {
   id: string;
   email: string | null;
-  role: UserRole;
+  username: string;
+  role: AppRole;
+  status: AccountStatus;
+  suspendedUntil: Date | null;
 }
 
 declare module 'http' {

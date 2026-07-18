@@ -24,7 +24,7 @@ export class ApiExceptionFilter implements ExceptionFilter {
       'code' in structured && typeof structured.code === 'string'
         ? structured.code
         : status === 500
-          ? 'INTERNAL_ERROR'
+          ? 'INTERNAL_SERVER_ERROR'
           : 'HTTP_ERROR';
     const message =
       'message' in structured && typeof structured.message === 'string'
@@ -38,13 +38,11 @@ export class ApiExceptionFilter implements ExceptionFilter {
       'request failed',
     );
     response.status(status).json({
-      error: {
-        code,
-        message,
-        requestId: request.id,
-        ...('details' in structured ? { details: structured.details } : {}),
-        ...('fieldErrors' in structured ? { fieldErrors: structured.fieldErrors } : {}),
-      },
+      code,
+      message,
+      requestId: request.id,
+      ...('details' in structured ? { details: structured.details } : {}),
+      ...('fieldErrors' in structured ? { fieldErrors: structured.fieldErrors } : {}),
     });
   }
 }

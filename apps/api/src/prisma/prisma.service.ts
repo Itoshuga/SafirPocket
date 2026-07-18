@@ -37,7 +37,7 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
   ): Promise<T> {
     // Prisma 7's generated interactive-transaction type loses model delegates when
     // PrismaClient is subclassed. Keep the cast isolated in this adapter boundary.
-    const transaction = this.$transaction as unknown as (
+    const transaction = this.$transaction.bind(this) as unknown as (
       callback: (client: PrismaTransactionClient) => Promise<T>,
       settings?: typeof options,
     ) => Promise<T>;

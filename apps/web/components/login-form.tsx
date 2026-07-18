@@ -1,57 +1,119 @@
 'use client';
 
-import { zodResolver } from '@hookform/resolvers/zod';
+import type { UsernameAvailability } from '@safir/shared-types';
 import { Button, ErrorState, Input } from '@safir/ui';
-import { credentialsSchema } from '@safir/validation';
+import { credentialsSchema, signupSchema, usernameSchema } from '@safir/validation';
 import { useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
-import type { z } from 'zod';
+import { apiFetch } from '@/lib/api-client';
 import { getBrowserAppUrl, isSupabaseConfigured } from '@/lib/env';
+import { safeInternalPath } from '@/lib/navigation';
 import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
 
-type Credentials = z.infer<typeof credentialsSchema>;
+interface AuthFields {
+  username: string;
+  email: string;
+  password: string;
+  confirmPassword: string;
+}
+
 type Mode = 'login' | 'signup' | 'recovery';
+type Availability = 'idle' | 'checking' | 'available' | 'unavailable';
 
 export function LoginForm() {
   const search = useSearchParams();
   const [mode, setMode] = useState<Mode>('login');
   const [message, setMessage] = useState<string | null>(null);
-  const form = useForm<Credentials>({
-    resolver: zodResolver(credentialsSchema),
-    defaultValues: { email: '', password: '' },
+  const [availability, setAvailability] = useState<Availability>('idle');
+  const form = useForm<AuthFields>({
+    defaultValues: { username: '', email: '', password: '', confirmPassword: '' },
   });
 
   function changeMode(next: Mode) {
     setMode(next);
     form.clearErrors();
     setMessage(null);
+    setAvailability('idle');
+  }
+
+  async function checkUsername(): Promise<boolean> {
+    const parsed = usernameSchema.safeParse(form.getValues('username'));
+    if (!parsed.success) {
+      form.setError('username', { message: parsed.error.issues[0]?.message });
+      setAvailability('idle');
+      return false;
+    }
+    setAvailability('checking');
+    try {
+      const result = await apiFetch<UsernameAvailability>(
+        `/api/v1/auth/username-availability?username=${encodeURIComponent(parsed.data)}`,
+      );
+      setAvailability(result.available ? 'available' : 'unavailable');
+      if (!result.available) {
+        form.setError('username', { message: "Ce nom d'utilisateur est déjà utilisé." });
+      }
+      return result.available;
+    } catch {
+      setAvailability('idle');
+      return true;
+    }
   }
 
   const submit = form.handleSubmit(async (values) => {
-    form.clearErrors('root');
+    form.clearErrors();
     setMessage(null);
+    const parsed =
+      mode === 'signup'
+        ? signupSchema.safeParse(values)
+        : credentialsSchema.safeParse({ email: values.email, password: values.password });
+    if (!parsed.success) {
+      for (const issue of parsed.error.issues) {
+        const field = issue.path[0];
+        if (
+          field === 'username' ||
+          field === 'email' ||
+          field === 'password' ||
+          field === 'confirmPassword'
+        ) {
+          form.setError(field, { message: issue.message });
+        }
+      }
+      return;
+    }
     if (!isSupabaseConfigured) {
       form.setError('root', {
         message: 'Renseignez NEXT_PUBLIC_SUPABASE_URL et NEXT_PUBLIC_SUPABASE_ANON_KEY.',
       });
       return;
     }
+    if (mode === 'signup' && !(await checkUsername())) return;
     const supabase = getSupabaseBrowserClient();
     const result =
       mode === 'login'
-        ? await supabase.auth.signInWithPassword(values)
+        ? await supabase.auth.signInWithPassword({ email: values.email, password: values.password })
         : await supabase.auth.signUp({
-            ...values,
-            options: { emailRedirectTo: `${getBrowserAppUrl()}/auth/callback` },
+            email: values.email,
+            password: values.password,
+            options: {
+              data: { username: values.username.trim() },
+              emailRedirectTo: `${getBrowserAppUrl()}/auth/callback`,
+            },
           });
     if (result.error) {
-      form.setError('root', { message: result.error.message });
+      const message = result.error.message.includes('USERNAME_ALREADY_EXISTS')
+        ? "Ce nom d'utilisateur est déjà utilisé."
+        : result.error.message.includes('USERNAME_INVALID')
+          ? "Le nom d'utilisateur n'est pas valide."
+          : result.error.message;
+      form.setError('root', { message });
       return;
     }
-    if (mode === 'signup' && !result.data.session)
+    if (mode === 'signup' && !result.data.session) {
       setMessage('Compte créé. Consultez votre e-mail pour confirmer votre inscription.');
-    else window.location.assign(search.get('next') ?? '/collection');
+    } else {
+      window.location.assign(safeInternalPath(search.get('next'), '/collection'));
+    }
   });
 
   async function recoverPassword() {
@@ -119,6 +181,30 @@ export function LoginForm() {
         </div>
       ) : null}
       <form className="mt-6 space-y-4" onSubmit={submit} noValidate>
+        {mode === 'signup' ? (
+          <label className="block text-sm font-medium">
+            Nom d’utilisateur
+            <Input
+              className="mt-1.5"
+              autoComplete="username"
+              maxLength={24}
+              aria-invalid={Boolean(form.formState.errors.username)}
+              {...form.register('username', {
+                onChange: () => setAvailability('idle'),
+                onBlur: () => void checkUsername(),
+              })}
+            />
+            {availability === 'checking' ? (
+              <span className="mt-1 block text-xs text-muted-foreground">Vérification…</span>
+            ) : null}
+            {availability === 'available' ? (
+              <span className="mt-1 block text-xs text-success">Nom disponible</span>
+            ) : null}
+          </label>
+        ) : null}
+        {form.formState.errors.username ? (
+          <p className="-mt-2 text-xs text-danger">{form.formState.errors.username.message}</p>
+        ) : null}
         <label className="block text-sm font-medium">
           E-mail
           <Input
@@ -148,6 +234,25 @@ export function LoginForm() {
             {form.formState.errors.password ? (
               <p className="-mt-2 text-xs text-danger">
                 Le mot de passe doit contenir au moins 8 caractères.
+              </p>
+            ) : null}
+          </>
+        ) : null}
+        {mode === 'signup' ? (
+          <>
+            <label className="block text-sm font-medium">
+              Confirmer le mot de passe
+              <Input
+                className="mt-1.5"
+                type="password"
+                autoComplete="new-password"
+                aria-invalid={Boolean(form.formState.errors.confirmPassword)}
+                {...form.register('confirmPassword')}
+              />
+            </label>
+            {form.formState.errors.confirmPassword ? (
+              <p className="-mt-2 text-xs text-danger">
+                {form.formState.errors.confirmPassword.message}
               </p>
             ) : null}
           </>

@@ -9,6 +9,7 @@ import { SupabaseAuthGuard } from './auth/supabase-auth.guard.js';
 import { CardsModule } from './cards/cards.module.js';
 import { CollectionsModule } from './collections/collections.module.js';
 import { RolesGuard } from './common/auth/roles.guard.js';
+import { PermissionsGuard } from './common/auth/permissions.guard.js';
 import { RequestIdMiddleware } from './common/logging/request-id.middleware.js';
 import { ConfigModule } from './config/config.module.js';
 import { DecksModule } from './decks/decks.module.js';
@@ -66,6 +67,7 @@ import { RedisModule } from './redis/redis.module.js';
     { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_GUARD, useClass: SupabaseAuthGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
+    { provide: APP_GUARD, useClass: PermissionsGuard },
   ],
 })
 export class AppModule implements NestModule {

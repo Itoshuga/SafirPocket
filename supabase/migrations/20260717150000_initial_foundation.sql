@@ -527,10 +527,10 @@ create policy avatars_owner_delete on storage.objects for delete to authenticate
 create policy card_artworks_published_read on storage.objects for select
   using (
     bucket_id = 'card-artworks' and (
-      exists (select 1 from public.cards where cards.artwork_path = name and cards.status = 'published')
+      exists (select 1 from public.cards where cards.artwork_path = storage.objects.name and cards.status = 'published')
       or exists (select 1 from public.card_variants join public.cards on cards.id = card_variants.card_id
-        where card_variants.artwork_path = name and cards.status = 'published')
-      or exists (select 1 from public.card_sets where card_sets.artwork_path = name and card_sets.status = 'published')
+        where card_variants.artwork_path = storage.objects.name and cards.status = 'published')
+      or exists (select 1 from public.card_sets where card_sets.artwork_path = storage.objects.name and card_sets.status = 'published')
     )
   );
 create policy card_artworks_admin_insert on storage.objects for insert to authenticated

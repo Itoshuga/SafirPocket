@@ -1,8 +1,7 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { createRemoteJWKSet, jwtVerify, type JWTPayload } from 'jose';
-import type { UserRole } from '@safir/shared-types';
-import type { AuthenticatedUser } from '../common/auth/auth.types.js';
+import { createRemoteJWKSet, errors, jwtVerify, type JWTPayload } from 'jose';
+import type { VerifiedAuthUser } from '../common/auth/auth.types.js';
 
 @Injectable()
 export class JwtVerifierService {
@@ -15,38 +14,34 @@ export class JwtVerifierService {
     this.jwks = createRemoteJWKSet(new URL(`${this.issuer}/.well-known/jwks.json`));
   }
 
-  async verify(token: string): Promise<AuthenticatedUser> {
+  async verify(token: string): Promise<VerifiedAuthUser> {
     try {
       const { payload } = await jwtVerify(token, this.jwks, {
         issuer: this.issuer,
         audience: 'authenticated',
       });
       return this.toUser(payload);
-    } catch {
+    } catch (error) {
       throw new UnauthorizedException({
-        code: 'INVALID_ACCESS_TOKEN',
-        message: "Le jeton d'accès est invalide ou expiré.",
+        code: error instanceof errors.JWTExpired ? 'SESSION_EXPIRED' : 'UNAUTHORIZED',
+        message:
+          error instanceof errors.JWTExpired
+            ? 'Votre session a expiré. Reconnectez-vous.'
+            : "Le jeton d'accès est invalide.",
       });
     }
   }
 
-  private toUser(payload: JWTPayload): AuthenticatedUser {
+  private toUser(payload: JWTPayload): VerifiedAuthUser {
     if (!payload.sub) {
       throw new UnauthorizedException({
-        code: 'INVALID_ACCESS_TOKEN',
+        code: 'UNAUTHORIZED',
         message: 'Jeton sans sujet.',
       });
     }
-    const metadata = payload.app_metadata;
-    const candidate =
-      metadata && typeof metadata === 'object' && 'role' in metadata
-        ? metadata.role
-        : payload.user_role;
-    const role: UserRole = candidate === 'admin' || candidate === 'moderator' ? candidate : 'user';
     return {
       id: payload.sub,
       email: typeof payload.email === 'string' ? payload.email : null,
-      role,
     };
   }
 }

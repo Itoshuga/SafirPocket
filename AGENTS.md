@@ -25,6 +25,15 @@ Lire avant toute modification : `README.md`, `docs/security.md`, `supabase/migra
 10. Utiliser les tokens de `apps/web/app/globals.css` et les primitives de `packages/ui`; ne pas dupliquer un bouton, champ, panneau, état vide ou dialogue dans une page.
 11. Toute donnée affichée comme un état métier doit venir de l’API. Les agrégats de collection, quantités réservées, portefeuilles, tirages et classements ne sont jamais recalculés comme source de vérité dans le client.
 12. Centraliser les clés TanStack Query dans `apps/web/lib/query-keys.ts` et invalider seulement les familles concernées après une mutation.
+13. Le rôle et le statut applicatifs viennent exclusivement de `user_profiles` après validation du JWT. Ne jamais faire confiance à `app_metadata`, `user_metadata`, un cookie applicatif ou un body pour autoriser une action.
+14. Toute action d’administration sensible doit utiliser la matrice de permissions, une transaction Prisma et écrire `admin_audit_logs`; toute modération écrit aussi `user_moderation_actions`.
+15. Les cartes utilisent les relations `rarity`, `season` et `typeLinks`. Les colonnes `rarity`, `card_type`, `set_id` et autres champs historiques restent uniquement des ponts de compatibilité pendant la migration.
+16. Archiver avec `deleted_at` et `is_active`; ne proposer une suppression définitive qu’à un administrateur et seulement après vérification des références.
+17. Déclarer toute navigation dans `apps/web/lib/navigation.ts`. Les sections admin restent des
+    sous-entrées repliables de la sidebar principale, filtrées par la matrice partagée; ne pas
+    réintroduire de barre horizontale ou de tabs de navigation dans les layouts `/admin`.
+18. Aucun mot de passe actuel, temporaire ou token de reset ne doit être lu, retourné ou journalisé. Les changements de mot de passe et d'e-mail passent exclusivement par Supabase Auth depuis l'API.
+19. Les avertissements sont révoqués, jamais supprimés; avertissements, suspensions, bannissements et changements de rôle restent historisés et audités.
 
 ## Chaîne de changement
 
@@ -34,7 +43,7 @@ Les conventions visuelles, responsive et de composants sont détaillées dans `d
 
 ## Modules sensibles
 
-Examiner RLS et ajouter des tests lors de toute modification de `boosters`, `economy`, `matches`, `matchmaking`, `auth`, `user_cards`, `wallets`, Storage ou des rôles. Toute écriture économique doit rester transactionnelle, traçable et idempotente.
+Examiner RLS et ajouter des tests lors de toute modification de `boosters`, `economy`, `matches`, `matchmaking`, `auth`, `user_profiles`, `user_moderation_actions`, `admin_audit_logs`, `user_cards`, `wallets`, Storage, du catalogue ou des rôles. Toute écriture économique doit rester transactionnelle, traçable et idempotente.
 
 ## Vérifications obligatoires
 

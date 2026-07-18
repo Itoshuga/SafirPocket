@@ -1,9 +1,13 @@
+const collectionRoot = ['collection'] as const;
+
 export const queryKeys = {
   cards: (filters: string) => ['cards', filters] as const,
   card: (id: string) => ['card', id] as const,
   cardFacets: ['card-facets'] as const,
-  collection: (filters: string) => ['collection', filters] as const,
+  collections: collectionRoot,
+  collection: (filters: string) => [...collectionRoot, filters] as const,
   collectionSummary: ['collection-summary'] as const,
+  cardCollectionContext: (id: string) => ['card-collection-context', id] as const,
   decks: ['decks'] as const,
   deck: (id: string) => ['deck', id] as const,
   boosterProducts: ['booster-products'] as const,
@@ -13,5 +17,17 @@ export const queryKeys = {
   profileSummary: ['profile-summary'] as const,
   rankings: (filters: string) => ['rankings', filters] as const,
   myRanking: ['my-ranking'] as const,
-  adminStatus: ['admin-status'] as const,
+  adminOverview: ['admin', 'overview'] as const,
+  adminUsers: (filters: string) => ['admin', 'users', filters] as const,
+  adminUser: (id: string) => ['admin', 'user', id] as const,
+  adminModerationHistory: (id: string) => ['admin', 'user', id, 'moderation'] as const,
+  adminUserWarnings: (id: string, status = 'all') =>
+    ['admin', 'user', id, 'warnings', status] as const,
+  adminUserAuditLogs: (id: string) => ['admin', 'user', id, 'audit-logs'] as const,
+  adminCards: (filters: string) => ['admin', 'cards', filters] as const,
+  adminCard: (id: string) => ['admin', 'card', id] as const,
+  adminRarities: (filters = 'active') => ['admin', 'rarities', filters] as const,
+  adminSeasons: (filters = 'active') => ['admin', 'seasons', filters] as const,
+  adminCardTypes: (filters = 'active') => ['admin', 'card-types', filters] as const,
+  adminAuditLogs: (filters: string) => ['admin', 'audit-logs', filters] as const,
 } as const;

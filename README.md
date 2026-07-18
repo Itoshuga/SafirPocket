@@ -35,29 +35,54 @@ prisma/schema.prisma   reflet typé des tables applicatives
 
 Le frontend n’accède directement qu’aux données autorisées par RLS. Les opérations sensibles passent par l’API, qui vérifie le JWT Supabase par JWKS et dérive l’utilisateur du claim `sub`. L’ouverture d’un booster débite le portefeuille, écrit l’audit, tire les cartes côté serveur, crée l’historique et met à jour la collection dans une transaction PostgreSQL sérialisable.
 
-## Prérequis macOS
+## Prérequis
 
-1. Installer [Homebrew](https://brew.sh/) si nécessaire.
-2. Installer `nvm`, puis exécuter `nvm install && nvm use` dans le dépôt. `.nvmrc` sélectionne Node 24 LTS.
-3. Activer pnpm avec `corepack enable` puis `corepack prepare pnpm@11.12.0 --activate`.
-4. Installer et démarrer Docker Desktop. Supabase local et Redis en dépendent.
+- Node.js 24 LTS, conformément à `.nvmrc` et au champ `engines` de `package.json`.
+- pnpm 11.12.0, conformément au champ `packageManager`.
+- Git.
+- Docker Desktop démarré pour Supabase local et Redis. Le frontend, les tests unitaires et le build peuvent être utilisés sans Docker.
+
+Sur macOS, installez au besoin Homebrew et `nvm`, puis exécutez `nvm install && nvm use`.
+Sur Windows, installez Node 24 LTS avec `fnm`, `nvm-windows` ou l’installateur officiel, puis
+redémarrez le terminal. Dans les deux cas, préparez la version exacte de pnpm :
+
+```bash
+corepack enable
+corepack prepare pnpm@11.12.0 --activate
+node --version
+corepack pnpm --version
+```
+
+Si PowerShell bloque un ancien shim `pnpm.ps1`, utilisez `corepack pnpm` à la place de `pnpm`.
+Il n’est pas nécessaire d’assouplir la politique d’exécution du système.
 
 ## Installation
 
 ```bash
-pnpm install
+pnpm install --frozen-lockfile
 cp .env.example .env
 cp apps/web/.env.example apps/web/.env.local
 cp apps/api/.env.example apps/api/.env
 pnpm prisma:generate
 ```
 
+Équivalent PowerShell :
+
+```powershell
+corepack pnpm install --frozen-lockfile
+Copy-Item .env.example .env
+Copy-Item apps/web/.env.example apps/web/.env.local
+Copy-Item apps/api/.env.example apps/api/.env
+corepack pnpm prisma:generate
+```
+
 Les fichiers `.env*` réels sont ignorés par Git. Ne placez jamais une clé service role ou une URL PostgreSQL dans `apps/web`.
 
 Pour tester depuis un autre appareil du réseau local, ajoutez son origine frontend à
-`WEB_ORIGINS` sous forme de liste séparée par des virgules, par exemple
-`WEB_ORIGINS=http://192.168.1.191:3000`. Le client web remplace automatiquement le nom d’hôte
-`localhost` de `NEXT_PUBLIC_API_URL` par celui utilisé dans le navigateur.
+`WEB_ORIGINS` sous forme de liste séparée par des virgules et définissez `NEXT_PUBLIC_APP_URL` avec
+l’adresse IP locale de la machine. Le client web remplace automatiquement le nom d’hôte `localhost`
+de `NEXT_PUBLIC_API_URL` par celui utilisé dans le navigateur, et Next autorise l’hôte déclaré par
+`NEXT_PUBLIC_APP_URL` en développement.
 
 ## Supabase local
 
@@ -148,7 +173,7 @@ L’API valide toutes ses variables au démarrage et cite uniquement les noms in
 
 ## Authentification
 
-`/login` prend en charge inscription, connexion et récupération de mot de passe par e-mail. `/auth/callback` échange le code PKCE. `proxy.ts` rafraîchit la session et protège les pages privées; `/admin` exige le rôle `admin`. L’API protège toutes les routes par défaut et marque explicitement les routes publiques. Le SDK Supabase gère la persistance de session; aucun code applicatif ne recopie le JWT manuellement dans `localStorage`.
+`/login` prend en charge inscription avec nom d’utilisateur, connexion et récupération de mot de passe par e-mail. `/auth/callback` échange le code PKCE. Le trigger `on_auth_user_created` crée atomiquement `user_profiles` avec le même UUID, le rôle `USER` et le statut `ACTIVE`; aucun mot de passe n’est copié dans le schéma applicatif. `proxy.ts` rafraîchit la session et protège les pages privées. Après validation du JWT, l’API recharge toujours le profil pour obtenir le rôle et bloquer les comptes suspendus ou bannis. La gateway Socket.IO applique le même contrôle à la connexion et avant chaque intention.
 
 L’architecture Supabase accepte un futur provider Google OAuth, mais aucun bouton inactif n’est affiché tant que le provider et ses URLs de redirection ne sont pas configurés.
 
@@ -156,7 +181,9 @@ L’architecture Supabase accepte un futur provider Google OAuth, mais aucun bou
 
 L’application utilise exclusivement un thème clair, y compris lorsque le système est en mode sombre. Les tokens sémantiques Tailwind vivent dans `apps/web/app/globals.css`; les primitives accessibles sont regroupées dans `packages/ui`. Les composants métier (`TcgCard`, construction de deck, catalogue, booster) restent dans `apps/web/components` et composent ces primitives.
 
-- Navigation latérale sur bureau, en-tête et navigation basse sur mobile.
+- Navigation latérale sur bureau, en-tête et navigation basse sur mobile. Les sections
+  administratives vivent exclusivement dans le groupe repliable `Administration` de la navigation
+  principale; le drawer mobile réutilise la même configuration et les mêmes permissions.
 - Rayons limités à `sm`, `md` et `lg`, ombres légères et accent saphir unique.
 - Filtres de catalogue et de collection synchronisés avec l’URL et exécutés par l’API.
 - `next/image` conserve le ratio des cartes; la route `/artwork/card/*` relaie Storage avec la clé anon publique et laisse les policies RLS contrôler la lecture.
@@ -166,7 +193,12 @@ Voir [docs/design-system.md](docs/design-system.md) pour les conventions complè
 
 ## Routes et endpoints applicatifs
 
-Pages publiques : `/`, `/login`, `/cards`, `/cards/[id]`, `/rankings`. Pages authentifiées : `/collection`, `/decks`, `/decks/new`, `/decks/[id]`, `/boosters`, `/play`, `/profile`. `/admin` est réservé au rôle `admin` côté proxy et côté API.
+Pages publiques : `/`, `/login`, `/cards`, `/cards/[id]`, `/rankings`. Pages authentifiées : `/collection`, `/decks`, `/decks/new`, `/decks/[id]`, `/boosters`, `/play`, `/profile`. L’espace `/admin` est monté uniquement pour `MODERATOR` et `ADMINISTRATOR`; les permissions de chaque endpoint restent la protection autoritaire.
+
+La configuration typée de la navigation se trouve dans `apps/web/lib/navigation.ts`. Elle déclare
+le groupe Administration, ses sous-routes, leur correspondance exacte et la permission requise.
+`MODERATOR` voit les sections opérationnelles; `AUDIT_LOGS_READ` réserve Journaux aux
+administrateurs. Il n'existe aucune navigation horizontale propre aux layouts administratifs.
 
 Les endpoints ajoutés pour la refonte sont notamment :
 
@@ -176,8 +208,15 @@ Les endpoints ajoutés pour la refonte sont notamment :
 - `GET /api/v1/rankings` et `GET /api/v1/me/ranking` ;
 - `GET /api/v1/me/wallets` et `GET /api/v1/me/booster-openings` ;
 - `GET /api/v1/admin/overview` pour les compteurs autorisés.
+- `GET /api/v1/auth/username-availability` et `GET/PATCH /api/v1/me/profile` pour l’identité applicative ;
+- `/api/v1/admin/users` pour recherche, modération, rôles et historique ;
+- `/api/v1/admin/users/:userId` et ses sous-routes `profile`, `email`, `role`, `warnings`, `suspend`, `ban`, `password-reset-email`, `temporary-password`, `moderation-history` et `audit-logs` pour la page dédiée de gestion ;
+- `/api/v1/admin/cards`, `/rarities`, `/seasons` et `/card-types` pour le catalogue relationnel ;
+- `GET /api/v1/admin/audit-logs` pour les administrateurs.
 
-Les erreurs API restent enveloppées sous `{ error: ... }` et exposent `code`, `message`, `details`, `fieldErrors` et `requestId` lorsque disponibles. `ApiClientError` conserve ces informations afin que les formulaires puissent rattacher les erreurs aux champs.
+Les erreurs API normalisées exposent au premier niveau `code`, `message`, `details`, `fieldErrors` et `requestId` lorsque disponibles. `ApiClientError` accepte aussi l’ancien format enveloppé pendant la transition et conserve ces informations afin que les formulaires puissent rattacher les erreurs aux champs.
+
+La migration `20260718090000_user_security_warnings.sql` ajoute les avertissements historisés et le marqueur `must_change_password`. Les mots de passe restent exclusivement dans Supabase Authentication; aucun administrateur ne peut consulter le mot de passe actuel. Les changements d'e-mail, resets et mots de passe temporaires utilisent l'API officielle Supabase depuis NestJS.
 
 ## Sécurité et données
 
@@ -189,9 +228,15 @@ Les erreurs API restent enveloppées sous `{ error: ... }` et exposent `code`, `
 - Les uploads sont bornés par bucket, MIME, taille et propriétaire. L’API devra aussi inspecter le contenu réel avant les futurs endpoints d’upload.
 - Les logs expurgent Authorization, cookies, mots de passe et tokens, et chaque réponse HTTP porte un identifiant de requête.
 
-Voir [docs/security.md](docs/security.md) et [AGENTS.md](AGENTS.md).
+Voir [docs/security.md](docs/security.md), [docs/administration.md](docs/administration.md) et [AGENTS.md](AGENTS.md).
 
 ## Qualité et tests
+
+Après une première installation, téléchargez Chromium une fois pour Playwright :
+
+```bash
+pnpm --filter @safir/web exec playwright install chromium
+```
 
 ```bash
 pnpm format
@@ -203,7 +248,7 @@ pnpm test:e2e
 pnpm build
 ```
 
-Les tests couvrent notamment santé, JWT invalide, catalogue public, refus d’une collection anonyme, ownership et réservations des decks, agrégats de collection, classement, idempotence/rollback booster, file Socket.IO et transitions/rejets du moteur. Playwright vérifie l’accueil, la navigation, le catalogue, les filtres, le détail, le classement, la validation de connexion, les gardes de routes et les largeurs 375/430/768/1024/1280/1440. Les tests unitaires ne nécessitent aucune base distante.
+Les tests couvrent notamment santé, JWT invalide, contrat du trigger d’inscription, matrice de permissions, transitions et audit de modération, blocage HTTP/Socket.IO, catalogue relationnel, cycles d’archivage, idempotence/rollback booster et transitions du moteur. Playwright vérifie l’inscription, la connexion, le catalogue, les gardes et le responsive. Les parcours administratifs authentifiés s’activent avec `E2E_AUTH_EMAIL` et `E2E_AUTH_PASSWORD`; ils sont ignorés explicitement lorsque ces comptes de test ne sont pas configurés. Les tests unitaires ne nécessitent aucune base distante.
 
 ## Dépannage
 
@@ -211,6 +256,8 @@ Les tests couvrent notamment santé, JWT invalide, catalogue public, refus d’u
 - **Prisma Client absent** : renseignez au moins `DIRECT_URL` puis lancez `pnpm prisma:generate`.
 - **API incapable de joindre PostgreSQL** : vérifiez `pnpm db:status`, le port 54322 et `DATABASE_URL`.
 - **Docker indisponible** : démarrez Docker Desktop avant Supabase/Redis.
+- **`pnpm.ps1` bloqué sous PowerShell** : préfixez les commandes par `corepack pnpm`; ne changez pas la politique d’exécution globale uniquement pour ce projet.
+- **Navigateur Playwright absent** : lancez `pnpm --filter @safir/web exec playwright install chromium`, puis `pnpm test:e2e`.
 - **Session en boucle** : vérifiez `site_url`, l’URL `/auth/callback` et les deux variables publiques Supabase.
 - **CORS Socket.IO/REST** : `WEB_ORIGIN` définit l’origine principale et `WEB_ORIGINS` les origines supplémentaires autorisées, séparées par des virgules.
 - **Types après migration** : ne lancez pas Prisma Migrate; actualisez le reflet Prisma, générez le client et relancez les vérifications.

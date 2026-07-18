@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import type { CollectionFilters } from '@safir/validation';
 import type { Prisma } from '../generated/prisma/client.js';
+import { cardRelations, toCard } from '../cards/card.mapper.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 
 @Injectable()
@@ -13,11 +14,13 @@ export class CollectionsService {
       cardVariant: {
         card: {
           status: 'published',
+          isActive: true,
+          deletedAt: null,
           ...(filters.search
             ? { name: { contains: filters.search, mode: 'insensitive' as const } }
             : {}),
-          ...(filters.set ? { set: { slug: filters.set } } : {}),
-          ...(filters.rarity ? { rarity: filters.rarity } : {}),
+          ...(filters.set ? { season: { slug: filters.set } } : {}),
+          ...(filters.rarity ? { rarity: { slug: filters.rarity } } : {}),
         },
       },
     };
@@ -30,34 +33,9 @@ export class CollectionsService {
     const [rows, total] = await this.prisma.$transaction([
       this.prisma.userCard.findMany({
         where,
-        select: {
-          cardVariantId: true,
-          quantity: true,
-          lockedQuantity: true,
-          firstObtainedAt: true,
-          lastObtainedAt: true,
+        include: {
           cardVariant: {
-            select: {
-              id: true,
-              name: true,
-              finish: true,
-              artworkPath: true,
-              card: {
-                select: {
-                  id: true,
-                  setId: true,
-                  name: true,
-                  slug: true,
-                  collectionNumber: true,
-                  rarity: true,
-                  cardType: true,
-                  cost: true,
-                  artworkPath: true,
-                  status: true,
-                  set: { select: { id: true, name: true, slug: true, code: true } },
-                },
-              },
-            },
+            include: { card: { include: cardRelations } },
           },
         },
         orderBy,
@@ -67,7 +45,10 @@ export class CollectionsService {
       this.prisma.userCard.count({ where }),
     ]);
     return {
-      data: rows.map(({ cardVariant, ...row }) => ({ ...row, variant: cardVariant })),
+      data: rows.map(({ cardVariant, ...row }) => ({
+        ...row,
+        variant: { ...cardVariant, card: toCard(cardVariant.card) },
+      })),
       pagination: {
         page: filters.page,
         pageSize: filters.pageSize,
@@ -80,11 +61,14 @@ export class CollectionsService {
   async summary(userId: string) {
     const [owned, publishedSets] = await Promise.all([
       this.prisma.userCard.findMany({
-        where: { userId, cardVariant: { card: { status: 'published' } } },
+        where: {
+          userId,
+          cardVariant: { card: { status: 'published', isActive: true, deletedAt: null } },
+        },
         select: {
           quantity: true,
           cardVariant: {
-            select: { cardId: true, card: { select: { rarity: true, setId: true } } },
+            select: { cardId: true, card: { select: { legacyRarity: true, setId: true } } },
           },
         },
       }),
@@ -95,7 +79,11 @@ export class CollectionsService {
           name: true,
           slug: true,
           code: true,
-          _count: { select: { cards: { where: { status: 'published' } } } },
+          _count: {
+            select: {
+              cards: { where: { status: 'published', isActive: true, deletedAt: null } },
+            },
+          },
         },
         orderBy: { displayOrder: 'asc' },
       }),
@@ -104,13 +92,14 @@ export class CollectionsService {
     const uniqueCards = new Set(owned.map(({ cardVariant }) => cardVariant.cardId)).size;
     const rarityCounts = new Map<string, number>();
     for (const entry of owned) {
-      const rarity = entry.cardVariant.card.rarity;
+      const rarity = entry.cardVariant.card.legacyRarity;
       rarityCounts.set(rarity, (rarityCounts.get(rarity) ?? 0) + entry.quantity);
     }
     const favoriteRarity = [...rarityCounts].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
     const ownedBySet = new Map<string, Set<string>>();
     for (const entry of owned) {
       const setId = entry.cardVariant.card.setId;
+      if (!setId) continue;
       const cardIds = ownedBySet.get(setId) ?? new Set<string>();
       cardIds.add(entry.cardVariant.cardId);
       ownedBySet.set(setId, cardIds);

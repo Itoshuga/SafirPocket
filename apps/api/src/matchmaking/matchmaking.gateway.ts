@@ -23,6 +23,7 @@ import {
   queueLeaveSchema,
 } from '@safir/validation';
 import type { Server, Socket } from 'socket.io';
+import { AccountAccessService } from '../auth/account-access.service.js';
 import type { AuthenticatedUser } from '../common/auth/auth.types.js';
 import { JwtVerifierService } from '../auth/jwt-verifier.service.js';
 import { parseInput } from '../common/errors/zod.js';
@@ -48,6 +49,7 @@ export class MatchmakingGateway implements OnGatewayConnection, OnGatewayDisconn
 
   constructor(
     @Inject(JwtVerifierService) private readonly verifier: JwtVerifierService,
+    @Inject(AccountAccessService) private readonly accountAccess: AccountAccessService,
     @Inject(PrismaService) private readonly prisma: PrismaService,
     @Inject(MatchesService) private readonly matches: MatchesService,
     @Inject(MATCHMAKING_QUEUE) private readonly queue: MatchmakingQueue,
@@ -57,7 +59,7 @@ export class MatchmakingGateway implements OnGatewayConnection, OnGatewayDisconn
     const token = this.readToken(client);
     if (!token) return this.reject(client, 'AUTHENTICATION_REQUIRED', 'Authentification requise.');
     try {
-      client.data.user = await this.verifier.verify(token);
+      client.data.user = await this.accountAccess.authenticate(await this.verifier.verify(token));
       const activeMatches = await this.matches.activeFor(client.data.user.id);
       for (const match of activeMatches) {
         await client.join(this.room(match.id));
@@ -70,8 +72,9 @@ export class MatchmakingGateway implements OnGatewayConnection, OnGatewayDisconn
           state: match.state as unknown as Record<string, unknown>,
         });
       }
-    } catch {
-      this.reject(client, 'INVALID_ACCESS_TOKEN', "Le jeton d'accès est invalide ou expiré.");
+    } catch (error) {
+      const payload = this.errorPayload(error, 'connection');
+      this.reject(client, payload.code, payload.message);
     }
   }
 
@@ -82,6 +85,7 @@ export class MatchmakingGateway implements OnGatewayConnection, OnGatewayDisconn
   @SubscribeMessage('queue:join')
   async joinQueue(@ConnectedSocket() client: MatchSocket, @MessageBody() payload: unknown) {
     try {
+      await this.refreshAccount(client);
       const input = parseInput(queueJoinSchema, payload);
       const deck = await this.prisma.deck.findFirst({
         where: { id: input.deckId, ownerId: client.data.user.id },
@@ -104,8 +108,9 @@ export class MatchmakingGateway implements OnGatewayConnection, OnGatewayDisconn
   }
 
   @SubscribeMessage('queue:leave')
-  leaveQueue(@ConnectedSocket() client: MatchSocket, @MessageBody() payload: unknown) {
+  async leaveQueue(@ConnectedSocket() client: MatchSocket, @MessageBody() payload: unknown) {
     try {
+      await this.refreshAccount(client);
       const input = parseInput(queueLeaveSchema, payload);
       this.queue.leave(client.data.user.id, input.format);
       client.emit('queue:left', { format: input.format });
@@ -117,6 +122,7 @@ export class MatchmakingGateway implements OnGatewayConnection, OnGatewayDisconn
   @SubscribeMessage('match:ready')
   async ready(@ConnectedSocket() client: MatchSocket, @MessageBody() payload: unknown) {
     try {
+      await this.refreshAccount(client);
       const input = parseInput(matchReadySchema, payload);
       const state = await this.matches.ready(input.matchId, client.data.user.id);
       this.server.to(this.room(input.matchId)).emit('match:state', state);
@@ -128,6 +134,7 @@ export class MatchmakingGateway implements OnGatewayConnection, OnGatewayDisconn
   @SubscribeMessage('match:action')
   async action(@ConnectedSocket() client: MatchSocket, @MessageBody() payload: unknown) {
     try {
+      await this.refreshAccount(client);
       const intent = parseInput(matchActionIntentSchema, payload) as MatchActionIntent;
       const result = await this.matches.applyIntent(client.data.user.id, intent);
       this.server.to(this.room(intent.matchId)).emit('match:event', {
@@ -151,6 +158,7 @@ export class MatchmakingGateway implements OnGatewayConnection, OnGatewayDisconn
   @SubscribeMessage('match:resync')
   async resync(@ConnectedSocket() client: MatchSocket, @MessageBody() payload: unknown) {
     try {
+      await this.refreshAccount(client);
       const input = parseInput(matchResyncSchema, payload);
       client.emit('match:state', await this.matches.snapshot(input.matchId, client.data.user.id));
     } catch (error) {
@@ -161,6 +169,7 @@ export class MatchmakingGateway implements OnGatewayConnection, OnGatewayDisconn
   @SubscribeMessage('match:forfeit')
   async forfeit(@ConnectedSocket() client: MatchSocket, @MessageBody() payload: unknown) {
     try {
+      await this.refreshAccount(client);
       const input = parseInput(matchReferenceSchema, payload);
       const result = await this.matches.forfeit(input.matchId, client.data.user.id);
       this.server.to(this.room(input.matchId)).emit('match:finished', {
@@ -198,9 +207,9 @@ export class MatchmakingGateway implements OnGatewayConnection, OnGatewayDisconn
     id: string;
     username: string;
     displayName: string | null;
-    avatarPath: string | null;
+    avatarUrl: string | null;
     bio: string | null;
-    role: 'user' | 'moderator' | 'admin';
+    role: 'USER' | 'PIONEER' | 'MODERATOR' | 'ADMINISTRATOR';
   }) {
     return profile;
   }
@@ -221,17 +230,28 @@ export class MatchmakingGateway implements OnGatewayConnection, OnGatewayDisconn
     client.disconnect(true);
   }
 
+  private async refreshAccount(client: MatchSocket): Promise<void> {
+    client.data.user = await this.accountAccess.ensureActive(
+      client.data.user.id,
+      client.data.user.email,
+    );
+  }
+
   private emitError(client: MatchSocket, code: string, message: string, event: string): void {
     client.emit('match:error', { code, message, event });
   }
 
   private handleError(client: MatchSocket, error: unknown, event: string): void {
+    client.emit('match:error', this.errorPayload(error, event));
+  }
+
+  private errorPayload(error: unknown, event: string): SocketError {
     const candidate = error as {
       code?: unknown;
       message?: unknown;
       response?: { code?: unknown; message?: unknown };
     };
-    const payload: SocketError = {
+    return {
       code:
         typeof candidate.response?.code === 'string'
           ? candidate.response.code
@@ -246,6 +266,5 @@ export class MatchmakingGateway implements OnGatewayConnection, OnGatewayDisconn
             : 'Action impossible.',
       event,
     };
-    client.emit('match:error', payload);
   }
 }

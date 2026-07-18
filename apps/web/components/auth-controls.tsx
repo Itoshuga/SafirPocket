@@ -1,13 +1,13 @@
 'use client';
 
-import { Avatar, Button, DropdownMenu, Skeleton } from '@safir/ui';
+import { Avatar, Badge, Button, DropdownMenu, Skeleton } from '@safir/ui';
 import { LogOut, Settings, UserRound } from 'lucide-react';
 import Link from 'next/link';
 import { useAuth } from './auth-provider';
 import { useAppStore } from '@/stores/app-store';
 
 export function AuthControls() {
-  const { user, loading, signOut } = useAuth();
+  const { user, profile, loading, signOut } = useAuth();
   const notify = useAppStore((state) => state.notify);
   if (loading) return <Skeleton className="h-9 w-24" />;
   if (!user) {
@@ -17,7 +17,7 @@ export function AuthControls() {
       </Button>
     );
   }
-  const label = user.user_metadata.display_name ?? user.email ?? 'Compte';
+  const label = profile?.displayName ?? profile?.username ?? user.email ?? 'Compte';
   return (
     <DropdownMenu.Root>
       <DropdownMenu.Trigger asChild>
@@ -26,11 +26,14 @@ export function AuthControls() {
           className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
           aria-label="Ouvrir le menu du compte"
         >
-          <Avatar alt={String(label)} fallback={String(label)} size="sm" />
+          <Avatar src={profile?.avatarUrl} alt={String(label)} fallback={String(label)} size="sm" />
         </button>
       </DropdownMenu.Trigger>
       <DropdownMenu.Content align="end">
-        <DropdownMenu.Label className="max-w-56 truncate">{String(label)}</DropdownMenu.Label>
+        <DropdownMenu.Label className="max-w-56">
+          <span className="block truncate">{String(label)}</span>
+          {profile?.role === 'PIONEER' ? <Badge className="mt-1">Pionnier</Badge> : null}
+        </DropdownMenu.Label>
         <DropdownMenu.Separator />
         <DropdownMenu.Item asChild>
           <Link href="/profile">

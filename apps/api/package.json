@@ -25,6 +25,7 @@
     "@safir/game-engine": "workspace:*",
     "@safir/shared-types": "workspace:*",
     "@safir/validation": "workspace:*",
+    "@supabase/supabase-js": "2.110.7",
     "express": "5.2.1",
     "helmet": "8.3.0",
     "jose": "6.2.3",

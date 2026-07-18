@@ -65,23 +65,30 @@ export function CardsExplorer() {
   });
   const activeFilters = [
     set
-      ? { key: 'set', label: facets.data?.sets.find((item) => item.slug === set)?.name ?? set }
+      ? { key: 'set', label: facets.data?.seasons.find((item) => item.slug === set)?.name ?? set }
       : null,
-    rarity ? { key: 'rarity', label: rarity } : null,
-    type ? { key: 'type', label: type } : null,
+    rarity
+      ? {
+          key: 'rarity',
+          label: facets.data?.rarities.find((item) => item.slug === rarity)?.name ?? rarity,
+        }
+      : null,
+    type
+      ? { key: 'type', label: facets.data?.types.find((item) => item.slug === type)?.name ?? type }
+      : null,
   ].filter((item): item is { key: string; label: string } => Boolean(item));
 
   const controls = (
     <div className="grid gap-4">
       <label className="text-sm font-medium">
-        Extension
+        Saison
         <Select
           className="mt-1.5"
           value={set}
           onChange={(event) => update({ set: event.target.value || null, page: 1 })}
         >
-          <option value="">Toutes les extensions</option>
-          {facets.data?.sets.map((item) => (
+          <option value="">Toutes les saisons</option>
+          {facets.data?.seasons.map((item) => (
             <option key={item.id} value={item.slug}>
               {item.name} ({item.cardCount ?? 0})
             </option>
@@ -97,7 +104,9 @@ export function CardsExplorer() {
         >
           <option value="">Toutes les raretés</option>
           {facets.data?.rarities.map((item) => (
-            <option key={item}>{item}</option>
+            <option key={item.id} value={item.slug}>
+              {item.name}
+            </option>
           ))}
         </Select>
       </label>
@@ -110,7 +119,9 @@ export function CardsExplorer() {
         >
           <option value="">Tous les types</option>
           {facets.data?.types.map((item) => (
-            <option key={item}>{item}</option>
+            <option key={item.id} value={item.slug}>
+              {item.name}
+            </option>
           ))}
         </Select>
       </label>

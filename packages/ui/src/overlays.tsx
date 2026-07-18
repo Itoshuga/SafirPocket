@@ -27,7 +27,7 @@ function DialogSurface({
         className={cn(
           'fixed z-50 border border-border bg-surface shadow-dialog focus:outline-none',
           drawer
-            ? 'inset-x-0 bottom-0 max-h-[88dvh] rounded-t-lg p-5 data-[state=open]:animate-in data-[state=closed]:animate-out sm:left-1/2 sm:top-1/2 sm:bottom-auto sm:max-h-[85vh] sm:w-[min(34rem,calc(100vw-2rem))] sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-lg sm:p-6'
+            ? 'inset-x-0 bottom-0 max-h-[88dvh] overflow-y-auto rounded-t-lg p-5 data-[state=open]:animate-in data-[state=closed]:animate-out sm:left-1/2 sm:top-1/2 sm:bottom-auto sm:max-h-[85vh] sm:w-[min(34rem,calc(100vw-2rem))] sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-lg sm:p-6'
             : 'left-1/2 top-1/2 w-[min(32rem,calc(100vw-2rem))] max-h-[85vh] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-lg p-6 data-[state=open]:animate-in data-[state=closed]:animate-out',
           'motion-reduce:animate-none',
         )}
@@ -239,7 +239,10 @@ export function Tabs({
 }) {
   return (
     <TabsPrimitive.Root value={value} onValueChange={onValueChange}>
-      <TabsPrimitive.List className="flex gap-1 border-b border-border" aria-label="Sections">
+      <TabsPrimitive.List
+        className="flex max-w-full gap-1 overflow-x-auto border-b border-border"
+        aria-label="Sections"
+      >
         {tabs.map((tab) => (
           <TabsPrimitive.Trigger
             key={tab.value}

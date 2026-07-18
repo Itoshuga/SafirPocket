@@ -1,7 +1,7 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import type { ProfileSummary, PublicUser } from '@safir/shared-types';
+import type { ProfileSummary, UserProfile } from '@safir/shared-types';
 import {
   Avatar,
   Badge,
@@ -32,7 +32,7 @@ function avatarUrl(path: string | null) {
     : null;
 }
 
-function ProfileEditor({ profile }: { profile: PublicUser }) {
+function ProfileEditor({ profile }: { profile: UserProfile }) {
   const client = useQueryClient();
   const notify = useAppStore((state) => state.notify);
   const form = useForm<ProfileUpdateInput>({
@@ -45,7 +45,7 @@ function ProfileEditor({ profile }: { profile: PublicUser }) {
   });
   const update = useMutation({
     mutationFn: (body: ProfileUpdateInput) =>
-      apiFetch<PublicUser>('/api/v1/me/profile', { method: 'PATCH', body: JSON.stringify(body) }),
+      apiFetch<UserProfile>('/api/v1/me/profile', { method: 'PATCH', body: JSON.stringify(body) }),
     onSuccess: (next) => {
       client.setQueryData(queryKeys.profile, next);
       notify('Profil mis à jour.', 'success');
@@ -71,14 +71,14 @@ function ProfileEditor({ profile }: { profile: PublicUser }) {
       >
         <div className="flex items-center gap-4">
           <Avatar
-            src={avatarUrl(profile.avatarPath)}
+            src={avatarUrl(profile.avatarUrl)}
             alt={profile.displayName ?? profile.username}
             fallback={profile.displayName ?? profile.username}
             size="lg"
           />
           <div>
             <p className="font-semibold">{profile.displayName ?? profile.username}</p>
-            <Badge className="mt-1">{profile.role}</Badge>
+            <Badge className="mt-1">{profile.roleLabel}</Badge>
             {profile.createdAt ? (
               <p className="mt-2 text-xs text-muted-foreground">
                 Membre depuis le{' '}
@@ -104,7 +104,7 @@ function ProfileEditor({ profile }: { profile: PublicUser }) {
           Nom affiché
           <Input
             className="mt-1.5"
-            maxLength={80}
+            maxLength={50}
             {...form.register('displayName', { setValueAs: (value) => value || null })}
           />
         </label>
@@ -165,7 +165,7 @@ function Preferences() {
 export function ProfileForm() {
   const profile = useQuery({
     queryKey: queryKeys.profile,
-    queryFn: () => apiFetch<PublicUser>('/api/v1/me/profile'),
+    queryFn: () => apiFetch<UserProfile>('/api/v1/me/profile'),
   });
   const summary = useQuery({
     queryKey: queryKeys.profileSummary,

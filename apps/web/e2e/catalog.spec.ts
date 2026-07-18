@@ -6,12 +6,41 @@ const card = {
   setId: '22222222-2222-4222-8222-222222222222',
   name: 'Sentinelle de Safir',
   slug: 'sentinelle-de-safir',
+  number: 1,
   collectionNumber: '001',
-  rarity: 'Rare',
+  attack: 2,
+  defense: 3,
+  value: 2,
+  description: 'Une protectrice attentive.',
+  imageUrl: null,
+  isCommander: false,
+  rarity: {
+    id: '44444444-4444-4444-8444-444444444444',
+    name: 'Rare',
+    slug: 'rare',
+    displayColor: '#9A6700',
+  },
+  season: {
+    id: '22222222-2222-4222-8222-222222222222',
+    name: 'Origines',
+    slug: 'origines',
+    code: 'ORI',
+  },
+  types: [
+    {
+      id: '55555555-5555-4555-8555-555555555555',
+      name: 'Allié',
+      slug: 'allie',
+      displayColor: null,
+    },
+  ],
   cardType: 'Allié',
   cost: 2,
   artworkPath: null,
   status: 'published',
+  isActive: true,
+  createdAt: '2026-07-17T00:00:00.000Z',
+  updatedAt: '2026-07-17T00:00:00.000Z',
   set: {
     id: '22222222-2222-4222-8222-222222222222',
     name: 'Origines',
@@ -27,7 +56,6 @@ test.beforeEach(async ({ page }) => {
       await route.fulfill({
         json: {
           ...card,
-          description: 'Une protectrice attentive.',
           effectText: 'Piochez une carte.',
           stats: { force: 2 },
           effects: [],
@@ -50,8 +78,35 @@ test.beforeEach(async ({ page }) => {
       await route.fulfill({
         json: {
           sets: [{ ...card.set, description: null, releaseDate: null, cardCount: 1 }],
-          rarities: ['Rare'],
-          types: ['Allié'],
+          seasons: [
+            {
+              ...card.season,
+              description: null,
+              startDate: null,
+              endDate: null,
+              isActive: true,
+              sortOrder: 0,
+              cardCount: 1,
+            },
+          ],
+          rarities: [
+            {
+              ...card.rarity,
+              description: null,
+              sortOrder: 0,
+              isActive: true,
+              cardCount: 1,
+            },
+          ],
+          types: [
+            {
+              ...card.types[0],
+              description: null,
+              sortOrder: 0,
+              isActive: true,
+              cardCount: 1,
+            },
+          ],
         },
       });
       return;
@@ -75,10 +130,10 @@ test('catalog filters are URL-backed and card detail is reachable', async ({ pag
   const filterButton = page.getByRole('button', { name: /Filtres/ });
   const mobileFilters = await filterButton.isVisible();
   if (mobileFilters) await filterButton.click();
-  const extension = mobileFilters
-    ? page.getByRole('dialog').getByLabel('Extension')
-    : page.getByLabel('Extension');
-  await extension.selectOption('origines');
+  const season = mobileFilters
+    ? page.getByRole('dialog').getByLabel('Saison')
+    : page.getByLabel('Saison');
+  await season.selectOption('origines');
   await expect(page).toHaveURL(/set=origines/);
   if (mobileFilters) await page.getByRole('dialog').getByRole('button', { name: 'Fermer' }).click();
   await page

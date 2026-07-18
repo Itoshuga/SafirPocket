@@ -7,6 +7,7 @@ import {
 import { Reflector } from '@nestjs/core';
 import type { Request } from 'express';
 import { IS_PUBLIC_KEY } from '../common/auth/public.decorator.js';
+import { AccountAccessService } from './account-access.service.js';
 import { JwtVerifierService } from './jwt-verifier.service.js';
 
 @Injectable()
@@ -14,6 +15,7 @@ export class SupabaseAuthGuard implements CanActivate {
   constructor(
     private readonly reflector: Reflector,
     private readonly verifier: JwtVerifierService,
+    private readonly accountAccess: AccountAccessService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -27,11 +29,12 @@ export class SupabaseAuthGuard implements CanActivate {
     const authorization = request.header('authorization');
     if (!authorization?.startsWith('Bearer ')) {
       throw new UnauthorizedException({
-        code: 'AUTHENTICATION_REQUIRED',
+        code: 'UNAUTHORIZED',
         message: 'Authentification requise.',
       });
     }
-    request.user = await this.verifier.verify(authorization.slice(7));
+    const identity = await this.verifier.verify(authorization.slice(7));
+    request.user = await this.accountAccess.authenticate(identity);
     return true;
   }
 }

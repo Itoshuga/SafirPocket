@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import type { DeckCardInput, DeckCreateInput, DeckUpdateInput } from '@safir/validation';
+import { cardRelations, toCard } from '../cards/card.mapper.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 
 @Injectable()
@@ -36,7 +37,7 @@ export class DecksService {
       include: {
         cards: {
           include: {
-            cardVariant: { include: { card: { include: { set: true } } } },
+            cardVariant: { include: { card: { include: cardRelations } } },
           },
           orderBy: { cardVariant: { card: { name: 'asc' } } },
         },
@@ -56,7 +57,10 @@ export class DecksService {
       updatedAt: deck.updatedAt,
       cardCount,
       uniqueCardCount: deck.cards.length,
-      cards: deck.cards,
+      cards: deck.cards.map(({ cardVariant, ...entry }) => ({
+        ...entry,
+        cardVariant: { ...cardVariant, card: toCard(cardVariant.card) },
+      })),
       validation: {
         valid: true,
         warnings:

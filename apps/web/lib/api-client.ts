@@ -25,15 +25,25 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
   } catch {
     // Public calls work without Supabase; protected calls receive a normalized 401 from the API.
   }
-  const response = await fetch(`${getBrowserApiUrl()}${path}`, { ...init, headers });
+  let response: Response;
+  try {
+    response = await fetch(`${getBrowserApiUrl()}${path}`, { ...init, headers });
+  } catch {
+    throw new ApiClientError(
+      0,
+      'NETWORK_ERROR',
+      "L'API Safir Pocket est inaccessible pour le moment.",
+    );
+  }
   if (!response.ok) {
     const body = (await response.json().catch(() => null)) as ApiErrorBody | null;
+    const error = body && 'error' in body ? body.error : body;
     throw new ApiClientError(
       response.status,
-      body?.error.code ?? 'REQUEST_FAILED',
-      body?.error.message ?? 'La requête a échoué.',
-      body?.error.fieldErrors,
-      body?.error.requestId,
+      error?.code ?? 'REQUEST_FAILED',
+      error?.message ?? 'La requête a échoué.',
+      error?.fieldErrors,
+      error?.requestId,
     );
   }
   return (await response.json()) as T;

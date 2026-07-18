@@ -8,15 +8,24 @@ describe('CollectionsService', () => {
         findMany: vi.fn().mockResolvedValue([
           {
             quantity: 3,
-            cardVariant: { cardId: 'card-a', card: { rarity: 'Rare', setId: 'set-a' } },
+            cardVariant: {
+              cardId: 'card-a',
+              card: { legacyRarity: 'Rare', setId: 'set-a' },
+            },
           },
           {
             quantity: 2,
-            cardVariant: { cardId: 'card-a', card: { rarity: 'Rare', setId: 'set-a' } },
+            cardVariant: {
+              cardId: 'card-a',
+              card: { legacyRarity: 'Rare', setId: 'set-a' },
+            },
           },
           {
             quantity: 1,
-            cardVariant: { cardId: 'card-b', card: { rarity: 'Common', setId: 'set-a' } },
+            cardVariant: {
+              cardId: 'card-b',
+              card: { legacyRarity: 'Common', setId: 'set-a' },
+            },
           },
         ]),
       },
@@ -78,7 +87,12 @@ describe('CollectionsService', () => {
         take: 10,
         where: expect.objectContaining({
           cardVariant: {
-            card: expect.objectContaining({ rarity: 'Rare', set: { slug: 'alpha' } }),
+            card: expect.objectContaining({
+              rarity: { slug: 'Rare' },
+              season: { slug: 'alpha' },
+              isActive: true,
+              deletedAt: null,
+            }),
           },
         }),
       }),

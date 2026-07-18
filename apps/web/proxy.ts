@@ -1,8 +1,19 @@
 import { createServerClient } from '@supabase/ssr';
 import { type NextRequest, NextResponse } from 'next/server';
 import { isSupabaseConfigured, publicEnv } from './lib/env';
+import { safeInternalPath } from './lib/navigation';
 
 const privatePrefixes = ['/collection', '/decks', '/boosters', '/play', '/profile', '/admin'];
+
+function loginRedirect(request: NextRequest, reason?: string) {
+  const loginUrl = new URL('/login', request.url);
+  loginUrl.searchParams.set(
+    'next',
+    safeInternalPath(`${request.nextUrl.pathname}${request.nextUrl.search}`, '/'),
+  );
+  if (reason) loginUrl.searchParams.set('reason', reason);
+  return NextResponse.redirect(loginUrl);
+}
 
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
@@ -10,10 +21,14 @@ export async function proxy(request: NextRequest) {
     (prefix) =>
       request.nextUrl.pathname === prefix || request.nextUrl.pathname.startsWith(`${prefix}/`),
   );
+  const e2eAuthSecret = process.env.E2E_MOCK_AUTH_SECRET;
+  const hasE2eAuth =
+    process.env.NODE_ENV !== 'production' &&
+    Boolean(e2eAuthSecret) &&
+    request.cookies.get('safir-e2e-auth')?.value === e2eAuthSecret;
+  if (hasE2eAuth) return response;
   if (!isSupabaseConfigured) {
-    return isPrivate
-      ? NextResponse.redirect(new URL('/login?reason=config', request.url))
-      : response;
+    return isPrivate ? loginRedirect(request, 'config') : response;
   }
 
   const supabase = createServerClient(publicEnv.supabaseUrl, publicEnv.supabaseAnonKey, {
@@ -30,15 +45,7 @@ export async function proxy(request: NextRequest) {
   });
   const { data } = await supabase.auth.getClaims();
   if (isPrivate && !data?.claims?.sub) {
-    const loginUrl = new URL('/login', request.url);
-    loginUrl.searchParams.set('next', request.nextUrl.pathname);
-    return NextResponse.redirect(loginUrl);
-  }
-  if (request.nextUrl.pathname.startsWith('/admin')) {
-    const metadata = data?.claims?.app_metadata;
-    const role =
-      metadata && typeof metadata === 'object' && 'role' in metadata ? metadata.role : null;
-    if (role !== 'admin') return NextResponse.redirect(new URL('/', request.url));
+    return loginRedirect(request);
   }
   return response;
 }

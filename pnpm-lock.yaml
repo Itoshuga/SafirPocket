@@ -84,6 +84,9 @@ importers:
       '@safir/validation':
         specifier: workspace:*
         version: link:../../packages/validation
+      '@supabase/supabase-js':
+        specifier: 2.110.7
+        version: 2.110.7
       express:
         specifier: 5.2.1
         version: 5.2.1

@@ -137,7 +137,9 @@ export function CollectionView() {
         >
           <option value="">Toutes raretés</option>
           {facets.data?.rarities.map((item) => (
-            <option key={item}>{item}</option>
+            <option key={item.id} value={item.slug}>
+              {item.name}
+            </option>
           ))}
         </Select>
         <Select
@@ -212,7 +214,10 @@ export function CollectionView() {
                   key={entry.cardVariantId}
                   card={{
                     ...entry.variant.card,
-                    artworkPath: entry.variant.artworkPath ?? entry.variant.card.artworkPath,
+                    artworkPath:
+                      entry.variant.artworkPath ??
+                      entry.variant.card.imageUrl ??
+                      entry.variant.card.artworkPath,
                   }}
                   mode="collection"
                   variantName={entry.variant.name}

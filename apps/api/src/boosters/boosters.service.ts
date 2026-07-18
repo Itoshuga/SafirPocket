@@ -6,6 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { z } from 'zod';
+import { cardRelations, toCard, type CardWithRelations } from '../cards/card.mapper.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 
 const weightConfigSchema = z.object({
@@ -61,25 +62,14 @@ export class BoostersService {
     ];
     const variants = variantIds.length
       ? await this.prisma.cardVariant.findMany({
-          where: { id: { in: variantIds }, card: { status: 'published' } },
+          where: {
+            id: { in: variantIds },
+            card: { status: 'published', isActive: true, deletedAt: null },
+          },
           select: {
             id: true,
             name: true,
-            card: {
-              select: {
-                id: true,
-                setId: true,
-                name: true,
-                slug: true,
-                collectionNumber: true,
-                rarity: true,
-                cardType: true,
-                cost: true,
-                artworkPath: true,
-                status: true,
-                set: { select: { id: true, name: true, slug: true, code: true } },
-              },
-            },
+            card: { include: cardRelations },
           },
         })
       : [];
@@ -102,7 +92,7 @@ export class BoostersService {
           .map((variant) => ({
             variantId: variant.id,
             variantName: variant.name,
-            card: variant.card,
+            card: toCard(variant.card),
           })),
       };
     });
@@ -119,7 +109,7 @@ export class BoostersService {
           include: {
             boosterProduct: true,
             cards: {
-              include: { cardVariant: { include: { card: { include: { set: true } } } } },
+              include: { cardVariant: { include: { card: { include: cardRelations } } } },
             },
           },
         });
@@ -261,7 +251,7 @@ export class BoostersService {
           include: {
             boosterProduct: true,
             cards: {
-              include: { cardVariant: { include: { card: { include: { set: true } } } } },
+              include: { cardVariant: { include: { card: { include: cardRelations } } } },
             },
           },
         });
@@ -286,7 +276,7 @@ export class BoostersService {
       where: { userId, idempotencyKey, status: 'completed' },
       include: {
         boosterProduct: true,
-        cards: { include: { cardVariant: { include: { card: { include: { set: true } } } } } },
+        cards: { include: { cardVariant: { include: { card: { include: cardRelations } } } } },
       },
     });
   }
@@ -296,7 +286,7 @@ export class BoostersService {
       where: { userId, status: 'completed' },
       include: {
         boosterProduct: true,
-        cards: { include: { cardVariant: { include: { card: { include: { set: true } } } } } },
+        cards: { include: { cardVariant: { include: { card: { include: cardRelations } } } } },
       },
       orderBy: { openedAt: 'desc' },
       take: 12,
@@ -325,7 +315,7 @@ export class BoostersService {
         slug: string;
         finish: string;
         artworkPath: string | null;
-        card: Record<string, unknown>;
+        card: CardWithRelations;
       };
     }>;
   }) {
@@ -343,7 +333,7 @@ export class BoostersService {
       },
       cards: opening.cards.map(({ quantity, cardVariant }) => ({
         quantity,
-        variant: cardVariant,
+        variant: { ...cardVariant, card: toCard(cardVariant.card) },
       })),
     };
   }

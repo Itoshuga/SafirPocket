@@ -7,12 +7,41 @@ datasource db {
   provider = "postgresql"
 }
 
-enum UserRole {
-  user
-  moderator
-  admin
+enum AppRole {
+  USER
+  PIONEER
+  MODERATOR
+  ADMINISTRATOR
 
-  @@map("user_role")
+  @@map("app_role")
+}
+
+enum AccountStatus {
+  ACTIVE
+  SUSPENDED
+  BANNED
+
+  @@map("account_status")
+}
+
+enum WarningSeverity {
+  LOW
+  MEDIUM
+  HIGH
+
+  @@map("warning_severity")
+}
+
+enum ModerationAction {
+  USER_SUSPENDED
+  USER_UNSUSPENDED
+  USER_BANNED
+  USER_UNBANNED
+  ROLE_CHANGED
+  PIONEER_GRANTED
+  PIONEER_REVOKED
+
+  @@map("moderation_action")
 }
 
 enum PublicationStatus {
@@ -57,15 +86,21 @@ enum MatchStatus {
   @@map("match_status")
 }
 
-model Profile {
-  id          String   @id @db.Uuid
-  username    String   @unique(map: "profiles_username_key")
-  displayName String?  @map("display_name")
-  avatarPath  String?  @map("avatar_path")
-  bio         String?
-  role        UserRole @default(user)
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt   DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+model UserProfile {
+  id                 String        @id @db.Uuid
+  username           String        @db.VarChar(24)
+  normalizedUsername String        @unique(map: "user_profiles_normalized_username_key") @map("normalized_username") @db.VarChar(24)
+  email              String
+  displayName        String?       @map("display_name") @db.VarChar(50)
+  avatarUrl          String?       @map("avatar_url")
+  bio                String?
+  role               AppRole       @default(USER)
+  status             AccountStatus @default(ACTIVE)
+  suspendedUntil     DateTime?     @map("suspended_until") @db.Timestamptz(6)
+  mustChangePassword Boolean       @default(false) @map("must_change_password")
+  createdAt          DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime      @default(now()) @map("updated_at") @db.Timestamptz(6)
+  lastLoginAt        DateTime?     @map("last_login_at") @db.Timestamptz(6)
 
   decks                Deck[]
   userCards            UserCard[]
@@ -76,8 +111,94 @@ model Profile {
   matchPlayers         MatchPlayer[]
   matchEvents          MatchEvent[]
   rankedRatings        RankedRating[]
+  moderationReceived   UserModerationAction[] @relation("ModerationTarget")
+  moderationPerformed  UserModerationAction[] @relation("ModerationActor")
+  warningsReceived     UserWarning[]          @relation("WarningTarget")
+  warningsIssued       UserWarning[]          @relation("WarningIssuer")
+  warningsRevoked      UserWarning[]          @relation("WarningRevoker")
+  auditLogs            AdminAuditLog[]
 
-  @@map("profiles")
+  @@index([role], map: "user_profiles_role_idx")
+  @@index([status], map: "user_profiles_status_idx")
+  @@index([createdAt], map: "user_profiles_created_at_idx")
+  @@map("user_profiles")
+}
+
+model UserWarning {
+  id               String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId           String          @map("user_id") @db.Uuid
+  issuedByUserId   String?         @map("issued_by_user_id") @db.Uuid
+  reason           String
+  internalNote     String?         @map("internal_note")
+  severity         WarningSeverity
+  isActive         Boolean         @default(true) @map("is_active")
+  acknowledgedAt   DateTime?       @map("acknowledged_at") @db.Timestamptz(6)
+  revokedAt        DateTime?       @map("revoked_at") @db.Timestamptz(6)
+  revokedByUserId  String?         @map("revoked_by_user_id") @db.Uuid
+  createdAt        DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime        @default(now()) @map("updated_at") @db.Timestamptz(6)
+  user             UserProfile     @relation("WarningTarget", fields: [userId], references: [id], onDelete: Restrict)
+  issuedBy         UserProfile?    @relation("WarningIssuer", fields: [issuedByUserId], references: [id], onDelete: SetNull)
+  revokedBy        UserProfile?    @relation("WarningRevoker", fields: [revokedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([userId], map: "user_warnings_user_id_idx")
+  @@index([issuedByUserId], map: "user_warnings_issued_by_user_id_idx")
+  @@index([isActive], map: "user_warnings_is_active_idx")
+  @@index([createdAt], map: "user_warnings_created_at_idx")
+  @@index([userId, isActive, createdAt], map: "user_warnings_user_status_created_idx")
+  @@map("user_warnings")
+}
+
+model UserModerationAction {
+  id             String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  targetUserId   String           @map("target_user_id") @db.Uuid
+  actorUserId    String?          @map("actor_user_id") @db.Uuid
+  action         ModerationAction
+  previousStatus AccountStatus?   @map("previous_status")
+  newStatus      AccountStatus?   @map("new_status")
+  previousRole   AppRole?         @map("previous_role")
+  newRole        AppRole?         @map("new_role")
+  reason         String
+  internalNote   String?          @map("internal_note")
+  metadata       Json             @default("{}")
+  createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  target         UserProfile      @relation("ModerationTarget", fields: [targetUserId], references: [id], onDelete: Restrict)
+  actor          UserProfile?     @relation("ModerationActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([targetUserId, createdAt], map: "moderation_target_created_idx")
+  @@index([actorUserId, createdAt], map: "moderation_actor_created_idx")
+  @@map("user_moderation_actions")
+}
+
+model AdminAuditLog {
+  id          String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  actorUserId String?      @map("actor_user_id") @db.Uuid
+  entityType  String       @map("entity_type")
+  entityId    String?      @map("entity_id") @db.Uuid
+  action      String
+  beforeData  Json?        @map("before_data")
+  afterData   Json?        @map("after_data")
+  requestId   String?      @map("request_id")
+  createdAt   DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  actor       UserProfile? @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt], map: "admin_audit_created_idx")
+  @@index([actorUserId, createdAt], map: "admin_audit_actor_idx")
+  @@index([entityType, entityId, createdAt], map: "admin_audit_entity_idx")
+  @@map("admin_audit_logs")
+}
+
+model CatalogMigrationIssue {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  migrationName String   @map("migration_name")
+  entityType    String   @map("entity_type")
+  entityId      String   @map("entity_id") @db.Uuid
+  fieldName     String   @map("field_name")
+  sourceValue   String?  @map("source_value")
+  issueCode     String   @map("issue_code")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("catalog_migration_issues")
 }
 
 model CardSet {
@@ -100,13 +221,13 @@ model CardSet {
 
 model Card {
   id               String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  setId            String            @map("set_id") @db.Uuid
+  setId            String?           @map("set_id") @db.Uuid
   name             String
   slug             String
   description      String?
   collectionNumber String            @map("collection_number")
-  rarity           String
-  cardType         String            @map("card_type")
+  legacyRarity     String            @map("rarity")
+  legacyCardType   String            @map("card_type")
   cost             Int?
   effectText       String?           @map("effect_text")
   effects          Json              @default("[]")
@@ -115,15 +236,96 @@ model Card {
   artworkPath      String?           @map("artwork_path")
   status           PublicationStatus @default(draft)
   displayOrder     Int               @default(0) @map("display_order")
+  number           BigInt
+  attack           BigInt            @default(0)
+  defense          BigInt            @default(0)
+  value            BigInt            @default(0)
+  imageUrl         String?           @map("image_url")
+  isCommander      Boolean           @default(false) @map("is_commander")
+  rarityId         String            @map("rarity_id") @db.Uuid
+  seasonId         String            @map("season_id") @db.Uuid
+  isActive         Boolean           @default(true) @map("is_active")
+  deletedAt        DateTime?         @map("deleted_at") @db.Timestamptz(6)
   createdAt        DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt        DateTime          @default(now()) @map("updated_at") @db.Timestamptz(6)
-  set              CardSet           @relation(fields: [setId], references: [id], onDelete: Restrict)
+  set              CardSet?          @relation(fields: [setId], references: [id], onDelete: Restrict)
+  rarity           CardRarity        @relation(fields: [rarityId], references: [id], onDelete: Restrict)
+  season           CardSeason        @relation(fields: [seasonId], references: [id], onDelete: Restrict)
+  typeLinks        CardTypeLink[]
   variants         CardVariant[]
 
   @@unique([setId, slug])
   @@unique([setId, collectionNumber])
-  @@index([status, cardType, rarity])
+  @@unique([seasonId, number], map: "cards_season_number_key")
+  @@index([status, legacyCardType, legacyRarity], map: "cards_catalog_idx")
+  @@index([deletedAt, isActive, seasonId, rarityId, updatedAt], map: "cards_admin_catalog_idx")
   @@map("cards")
+}
+
+model CardRarity {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name         String    @db.VarChar(80)
+  slug         String    @unique @db.VarChar(100)
+  description  String?
+  displayColor String?   @map("display_color") @db.VarChar(7)
+  sortOrder    Int       @default(0) @map("sort_order")
+  isActive     Boolean   @default(true) @map("is_active")
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+  deletedAt    DateTime? @map("deleted_at") @db.Timestamptz(6)
+  cards        Card[]
+
+  @@index([isActive, sortOrder, name], map: "card_rarities_active_sort_idx")
+  @@map("card_rarities")
+}
+
+model CardSeason {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name        String    @db.VarChar(100)
+  slug        String    @unique @db.VarChar(120)
+  code        String?   @db.VarChar(24)
+  description String?
+  startDate   DateTime? @map("start_date") @db.Date
+  endDate     DateTime? @map("end_date") @db.Date
+  isActive    Boolean   @default(true) @map("is_active")
+  sortOrder   Int       @default(0) @map("sort_order")
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+  deletedAt   DateTime? @map("deleted_at") @db.Timestamptz(6)
+  cards       Card[]
+
+  @@index([isActive, sortOrder, name], map: "card_seasons_active_sort_idx")
+  @@map("card_seasons")
+}
+
+model CardType {
+  id           String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name         String         @db.VarChar(80)
+  slug         String         @unique @db.VarChar(100)
+  description  String?
+  displayColor String?        @map("display_color") @db.VarChar(7)
+  sortOrder    Int            @default(0) @map("sort_order")
+  isActive     Boolean        @default(true) @map("is_active")
+  createdAt    DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime       @default(now()) @map("updated_at") @db.Timestamptz(6)
+  deletedAt    DateTime?      @map("deleted_at") @db.Timestamptz(6)
+  links        CardTypeLink[]
+
+  @@index([isActive, sortOrder, name], map: "card_types_active_sort_idx")
+  @@map("card_types")
+}
+
+model CardTypeLink {
+  cardId    String   @map("card_id") @db.Uuid
+  typeId    String   @map("type_id") @db.Uuid
+  sortOrder Int      @default(0) @map("sort_order")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  card      Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  type      CardType @relation(fields: [typeId], references: [id], onDelete: Restrict)
+
+  @@id([cardId, typeId])
+  @@index([typeId, cardId], map: "card_type_links_type_idx")
+  @@map("card_type_links")
 }
 
 model CardVariant {
@@ -154,7 +356,7 @@ model UserCard {
   lockedQuantity  Int         @default(0) @map("locked_quantity")
   firstObtainedAt DateTime    @default(now()) @map("first_obtained_at") @db.Timestamptz(6)
   lastObtainedAt  DateTime    @default(now()) @map("last_obtained_at") @db.Timestamptz(6)
-  user            Profile     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user            UserProfile @relation(fields: [userId], references: [id], onDelete: Cascade)
   cardVariant     CardVariant @relation(fields: [cardVariantId], references: [id], onDelete: Restrict)
 
   @@id([userId, cardVariantId])
@@ -162,18 +364,18 @@ model UserCard {
 }
 
 model Deck {
-  id          String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  ownerId     String         @map("owner_id") @db.Uuid
-  name        String
-  description String?
-  isActive    Boolean        @default(false) @map("is_active")
-  visibility  DeckVisibility @default(private)
-  format      String         @default("open")
-  metadata    Json           @default("{}")
-  createdAt   DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt   DateTime       @default(now()) @map("updated_at") @db.Timestamptz(6)
-  owner       Profile        @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  cards       DeckCard[]
+  id           String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ownerId      String         @map("owner_id") @db.Uuid
+  name         String
+  description  String?
+  isActive     Boolean        @default(false) @map("is_active")
+  visibility   DeckVisibility @default(private)
+  format       String         @default("open")
+  metadata     Json           @default("{}")
+  createdAt    DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime       @default(now()) @map("updated_at") @db.Timestamptz(6)
+  owner        UserProfile    @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  cards        DeckCard[]
   matchPlayers MatchPlayer[]
 
   @@index([ownerId, updatedAt])
@@ -194,20 +396,20 @@ model DeckCard {
 }
 
 model BoosterProduct {
-  id             String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id             String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name           String
-  slug           String            @unique
+  slug           String               @unique
   description    String?
-  artworkPath    String?           @map("artwork_path")
-  priceCurrency  String            @map("price_currency")
-  priceAmount    BigInt            @map("price_amount")
-  cardsPerPack   Int               @map("cards_per_pack")
-  status         PublicationStatus @default(draft)
-  availableFrom  DateTime?         @map("available_from") @db.Timestamptz(6)
-  availableUntil DateTime?         @map("available_until") @db.Timestamptz(6)
-  metadata       Json              @default("{}")
-  createdAt      DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt      DateTime          @default(now()) @map("updated_at") @db.Timestamptz(6)
+  artworkPath    String?              @map("artwork_path")
+  priceCurrency  String               @map("price_currency")
+  priceAmount    BigInt               @map("price_amount")
+  cardsPerPack   Int                  @map("cards_per_pack")
+  status         PublicationStatus    @default(draft)
+  availableFrom  DateTime?            @map("available_from") @db.Timestamptz(6)
+  availableUntil DateTime?            @map("available_until") @db.Timestamptz(6)
+  metadata       Json                 @default("{}")
+  createdAt      DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime             @default(now()) @map("updated_at") @db.Timestamptz(6)
   slots          BoosterProductSlot[]
   openings       PackOpening[]
 
@@ -238,7 +440,7 @@ model PackOpening {
   errorCode        String?           @map("error_code")
   openedAt         DateTime?         @map("opened_at") @db.Timestamptz(6)
   createdAt        DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
-  user             Profile           @relation(fields: [userId], references: [id], onDelete: Restrict)
+  user             UserProfile       @relation(fields: [userId], references: [id], onDelete: Restrict)
   boosterProduct   BoosterProduct    @relation(fields: [boosterProductId], references: [id], onDelete: Restrict)
   cards            PackOpeningCard[]
 
@@ -247,45 +449,45 @@ model PackOpening {
 }
 
 model PackOpeningCard {
-  id              String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  packOpeningId   String        @map("pack_opening_id") @db.Uuid
-  cardVariantId   String        @map("card_variant_id") @db.Uuid
-  slotIndex       Int           @map("slot_index")
-  quantity        Int           @default(1)
-  probabilityData Json          @default("{}") @map("probability_data")
-  createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
-  packOpening     PackOpening   @relation(fields: [packOpeningId], references: [id], onDelete: Cascade)
-  cardVariant     CardVariant   @relation(fields: [cardVariantId], references: [id], onDelete: Restrict)
+  id              String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  packOpeningId   String      @map("pack_opening_id") @db.Uuid
+  cardVariantId   String      @map("card_variant_id") @db.Uuid
+  slotIndex       Int         @map("slot_index")
+  quantity        Int         @default(1)
+  probabilityData Json        @default("{}") @map("probability_data")
+  createdAt       DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  packOpening     PackOpening @relation(fields: [packOpeningId], references: [id], onDelete: Cascade)
+  cardVariant     CardVariant @relation(fields: [cardVariantId], references: [id], onDelete: Restrict)
 
   @@unique([packOpeningId, slotIndex, cardVariantId])
   @@map("pack_opening_cards")
 }
 
 model Wallet {
-  userId       String   @map("user_id") @db.Uuid
-  currencyCode String   @map("currency_code")
-  balance      BigInt   @default(0)
-  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt    DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
-  user         Profile  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId       String      @map("user_id") @db.Uuid
+  currencyCode String      @map("currency_code")
+  balance      BigInt      @default(0)
+  createdAt    DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime    @default(now()) @map("updated_at") @db.Timestamptz(6)
+  user         UserProfile @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@id([userId, currencyCode])
   @@map("wallets")
 }
 
 model CurrencyTransaction {
-  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId         String   @map("user_id") @db.Uuid
-  currencyCode   String   @map("currency_code")
+  id             String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId         String      @map("user_id") @db.Uuid
+  currencyCode   String      @map("currency_code")
   amount         BigInt
-  balanceAfter   BigInt   @map("balance_after")
+  balanceAfter   BigInt      @map("balance_after")
   reason         String
-  referenceType  String?  @map("reference_type")
-  referenceId    String?  @map("reference_id")
-  idempotencyKey String   @map("idempotency_key") @db.Uuid
-  metadata       Json     @default("{}")
-  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  user           Profile  @relation(fields: [userId], references: [id], onDelete: Restrict)
+  referenceType  String?     @map("reference_type")
+  referenceId    String?     @map("reference_id")
+  idempotencyKey String      @map("idempotency_key") @db.Uuid
+  metadata       Json        @default("{}")
+  createdAt      DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  user           UserProfile @relation(fields: [userId], references: [id], onDelete: Restrict)
 
   @@unique([userId, idempotencyKey])
   @@index([userId, currencyCode, createdAt])
@@ -319,7 +521,7 @@ model UserMission {
   claimedAt   DateTime?     @map("claimed_at") @db.Timestamptz(6)
   createdAt   DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt   DateTime      @default(now()) @map("updated_at") @db.Timestamptz(6)
-  user        Profile       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user        UserProfile   @relation(fields: [userId], references: [id], onDelete: Cascade)
   mission     Mission       @relation(fields: [missionId], references: [id], onDelete: Cascade)
 
   @@id([userId, missionId])
@@ -327,36 +529,36 @@ model UserMission {
 }
 
 model Match {
-  id                String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  status            MatchStatus @default(pending)
-  format            String
-  rulesVersion      String      @map("rules_version")
-  currentSequence   Int         @default(0) @map("current_sequence")
-  state             Json        @default("{}")
-  winnerId          String?     @map("winner_id") @db.Uuid
-  resultReason      String?     @map("result_reason")
-  startedAt         DateTime?   @map("started_at") @db.Timestamptz(6)
-  finishedAt        DateTime?   @map("finished_at") @db.Timestamptz(6)
-  createdAt         DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt         DateTime    @default(now()) @map("updated_at") @db.Timestamptz(6)
-  players           MatchPlayer[]
-  events            MatchEvent[]
+  id              String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  status          MatchStatus   @default(pending)
+  format          String
+  rulesVersion    String        @map("rules_version")
+  currentSequence Int           @default(0) @map("current_sequence")
+  state           Json          @default("{}")
+  winnerId        String?       @map("winner_id") @db.Uuid
+  resultReason    String?       @map("result_reason")
+  startedAt       DateTime?     @map("started_at") @db.Timestamptz(6)
+  finishedAt      DateTime?     @map("finished_at") @db.Timestamptz(6)
+  createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime      @default(now()) @map("updated_at") @db.Timestamptz(6)
+  players         MatchPlayer[]
+  events          MatchEvent[]
 
   @@index([status, createdAt])
   @@map("matches")
 }
 
 model MatchPlayer {
-  matchId    String   @map("match_id") @db.Uuid
-  userId     String   @map("user_id") @db.Uuid
-  deckId     String?  @map("deck_id") @db.Uuid
-  seat       Int
-  isReady    Boolean  @default(false) @map("is_ready")
-  snapshot   Json     @default("{}")
-  joinedAt   DateTime @default(now()) @map("joined_at") @db.Timestamptz(6)
-  match      Match    @relation(fields: [matchId], references: [id], onDelete: Cascade)
-  user       Profile  @relation(fields: [userId], references: [id], onDelete: Restrict)
-  deck       Deck?    @relation(fields: [deckId], references: [id], onDelete: SetNull)
+  matchId  String      @map("match_id") @db.Uuid
+  userId   String      @map("user_id") @db.Uuid
+  deckId   String?     @map("deck_id") @db.Uuid
+  seat     Int
+  isReady  Boolean     @default(false) @map("is_ready")
+  snapshot Json        @default("{}")
+  joinedAt DateTime    @default(now()) @map("joined_at") @db.Timestamptz(6)
+  match    Match       @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  user     UserProfile @relation(fields: [userId], references: [id], onDelete: Restrict)
+  deck     Deck?       @relation(fields: [deckId], references: [id], onDelete: SetNull)
 
   @@id([matchId, userId])
   @@unique([matchId, seat])
@@ -364,29 +566,29 @@ model MatchPlayer {
 }
 
 model MatchEvent {
-  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  matchId      String   @map("match_id") @db.Uuid
+  id           String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  matchId      String       @map("match_id") @db.Uuid
   sequence     Int
-  actorId      String?  @map("actor_id") @db.Uuid
-  eventType    String   @map("event_type")
+  actorId      String?      @map("actor_id") @db.Uuid
+  eventType    String       @map("event_type")
   payload      Json
-  rulesVersion String   @map("rules_version")
-  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  match        Match    @relation(fields: [matchId], references: [id], onDelete: Cascade)
-  actor        Profile? @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  rulesVersion String       @map("rules_version")
+  createdAt    DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  match        Match        @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  actor        UserProfile? @relation(fields: [actorId], references: [id], onDelete: SetNull)
 
   @@unique([matchId, sequence])
   @@map("match_events")
 }
 
 model RankedSeason {
-  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  slug      String   @unique
+  id        String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  slug      String         @unique
   name      String
-  startsAt  DateTime @map("starts_at") @db.Timestamptz(6)
-  endsAt    DateTime @map("ends_at") @db.Timestamptz(6)
-  rules     Json     @default("{}")
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  startsAt  DateTime       @map("starts_at") @db.Timestamptz(6)
+  endsAt    DateTime       @map("ends_at") @db.Timestamptz(6)
+  rules     Json           @default("{}")
+  createdAt DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
   ratings   RankedRating[]
 
   @@map("ranked_seasons")
@@ -401,7 +603,7 @@ model RankedRating {
   draws     Int          @default(0)
   updatedAt DateTime     @default(now()) @map("updated_at") @db.Timestamptz(6)
   season    RankedSeason @relation(fields: [seasonId], references: [id], onDelete: Cascade)
-  user      Profile      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      UserProfile  @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@id([seasonId, userId])
   @@index([seasonId, rating])

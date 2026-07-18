@@ -1,40 +1,53 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import type { ProfileUpdateInput } from '@safir/validation';
+import { normalizeUsername } from '@safir/validation';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { toUserProfile } from './profile.mapper.js';
 
 @Injectable()
 export class ProfilesService {
   constructor(private readonly prisma: PrismaService) {}
 
   async getMe(userId: string) {
-    const profile = await this.prisma.profile.findUnique({ where: { id: userId } });
+    const profile = await this.prisma.userProfile.findUnique({ where: { id: userId } });
     if (!profile)
       throw new NotFoundException({ code: 'PROFILE_NOT_FOUND', message: 'Profil introuvable.' });
-    return profile;
+    return toUserProfile(profile);
   }
 
   async updateMe(userId: string, input: ProfileUpdateInput) {
     if (input.username) {
-      const existing = await this.prisma.profile.findFirst({
-        where: { username: { equals: input.username, mode: 'insensitive' }, NOT: { id: userId } },
+      const existing = await this.prisma.userProfile.findFirst({
+        where: { normalizedUsername: normalizeUsername(input.username), NOT: { id: userId } },
         select: { id: true },
       });
       if (existing) {
         throw new ConflictException({
-          code: 'USERNAME_UNAVAILABLE',
+          code: 'USERNAME_ALREADY_EXISTS',
           message: "Ce nom d'utilisateur est déjà utilisé.",
         });
       }
     }
-    return this.prisma.profile.update({
-      where: { id: userId },
-      data: {
-        ...(input.username !== undefined ? { username: input.username } : {}),
-        ...(input.displayName !== undefined ? { displayName: input.displayName } : {}),
-        ...(input.bio !== undefined ? { bio: input.bio } : {}),
-        ...(input.avatarPath !== undefined ? { avatarPath: input.avatarPath } : {}),
-      },
-    });
+    try {
+      const profile = await this.prisma.userProfile.update({
+        where: { id: userId },
+        data: {
+          ...(input.username !== undefined ? { username: input.username } : {}),
+          ...(input.displayName !== undefined ? { displayName: input.displayName } : {}),
+          ...(input.bio !== undefined ? { bio: input.bio } : {}),
+          ...(input.avatarUrl !== undefined ? { avatarUrl: input.avatarUrl } : {}),
+        },
+      });
+      return toUserProfile(profile);
+    } catch (error) {
+      if ((error as { code?: string }).code === 'P2002') {
+        throw new ConflictException({
+          code: 'USERNAME_ALREADY_EXISTS',
+          message: "Ce nom d'utilisateur est déjà utilisé.",
+        });
+      }
+      throw error;
+    }
   }
 
   async summary(userId: string) {
@@ -46,13 +59,18 @@ export class ProfilesService {
     });
     const [owned, publishedCardCount, deckCount, matchCount, wins, rating] = await Promise.all([
       this.prisma.userCard.findMany({
-        where: { userId, cardVariant: { card: { status: 'published' } } },
+        where: {
+          userId,
+          cardVariant: { card: { status: 'published', isActive: true, deletedAt: null } },
+        },
         select: {
           quantity: true,
-          cardVariant: { select: { cardId: true, card: { select: { rarity: true } } } },
+          cardVariant: { select: { cardId: true, card: { select: { legacyRarity: true } } } },
         },
       }),
-      this.prisma.card.count({ where: { status: 'published' } }),
+      this.prisma.card.count({
+        where: { status: 'published', isActive: true, deletedAt: null },
+      }),
       this.prisma.deck.count({ where: { ownerId: userId } }),
       this.prisma.match.count({ where: { players: { some: { userId } } } }),
       this.prisma.match.count({ where: { winnerId: userId, status: 'completed' } }),
@@ -65,7 +83,7 @@ export class ProfilesService {
     const uniqueCards = new Set(owned.map(({ cardVariant }) => cardVariant.cardId)).size;
     const rarityCounts = new Map<string, number>();
     for (const entry of owned) {
-      const rarity = entry.cardVariant.card.rarity;
+      const rarity = entry.cardVariant.card.legacyRarity;
       rarityCounts.set(rarity, (rarityCounts.get(rarity) ?? 0) + entry.quantity);
     }
     const currentRank = rating
