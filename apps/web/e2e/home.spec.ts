@@ -25,7 +25,8 @@ test('the layout does not overflow at supported widths', async ({ page }) => {
 test('mobile navigation exposes secondary sections', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
   await page.goto('/');
-  await page.getByRole('button', { name: 'Plus' }).click();
+  await expect(page.getByRole('button', { name: 'Plus' })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Ouvrir la navigation' }).click();
   await expect(page.getByRole('link', { name: 'Classement' })).toBeVisible();
   await expect(page.getByRole('link', { name: 'Profil' })).toBeVisible();
 });

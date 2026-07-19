@@ -6,9 +6,24 @@ import {
   getVisibleAdminNavigationItems,
   isAdministrationPath,
   isNavigationItemActive,
+  mobileNavigationItems,
+  playNavigationItem,
   resolveAdministrationOpen,
   safeInternalPath,
 } from './navigation';
+
+describe('primary navigation hierarchy', () => {
+  it('keeps play prominent and centered in the mobile navigation', () => {
+    expect(playNavigationItem.href).toBe('/play');
+    expect(mobileNavigationItems.map((item) => item.label)).toEqual([
+      'Cartes',
+      'Collection',
+      'Jouer',
+      'Decks',
+      'Boosters',
+    ]);
+  });
+});
 
 describe('safeInternalPath', () => {
   it('keeps an internal path with its query and fragment', () => {

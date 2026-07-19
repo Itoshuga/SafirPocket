@@ -16,12 +16,14 @@ export function SidebarNavigationItem({
   item,
   pathname,
   nested = false,
+  prominent = false,
   onNavigate,
   tabIndex,
 }: {
   item: NavigationItem;
   pathname: string;
   nested?: boolean;
+  prominent?: boolean;
   onNavigate?: () => void;
   tabIndex?: number;
 }) {
@@ -36,7 +38,10 @@ export function SidebarNavigationItem({
       className={cn(
         'flex items-center rounded-md font-medium text-muted-foreground transition-colors duration-150 hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring motion-reduce:transition-none',
         nested ? 'min-h-9 gap-2.5 px-2.5 text-[13px]' : 'min-h-10 gap-3 px-3 text-sm',
-        active && 'bg-primary-soft text-primary',
+        prominent &&
+          'min-h-11 bg-primary text-primary-foreground shadow-control hover:bg-primary-hover hover:text-primary-foreground',
+        active &&
+          (prominent ? 'bg-primary-hover text-primary-foreground' : 'bg-primary-soft text-primary'),
       )}
     >
       <Icon className={nested ? 'size-4' : 'size-4.5'} aria-hidden="true" />

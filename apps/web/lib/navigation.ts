@@ -162,7 +162,15 @@ export const adminNavigationGroup = {
   ],
 } as const satisfies NavigationGroup;
 
-export const mobilePrimaryHrefs = new Set(['/cards', '/collection', '/decks', '/boosters']);
+export const playNavigationItem = primaryNavigationItems[5];
+export const sidebarNavigationItems = primaryNavigationItems.filter((item) => item.key !== 'play');
+export const mobileNavigationItems = [
+  primaryNavigationItems[1],
+  primaryNavigationItems[2],
+  playNavigationItem,
+  primaryNavigationItems[3],
+  primaryNavigationItems[4],
+] as const;
 
 export const settingsNavigationItems = [
   {
