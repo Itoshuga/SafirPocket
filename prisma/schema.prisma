@@ -32,6 +32,22 @@ enum WarningSeverity {
   @@map("warning_severity")
 }
 
+enum ProfileVisibility {
+  PUBLIC
+  PRIVATE
+
+  @@map("profile_visibility")
+}
+
+enum FriendRequestStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  CANCELLED
+
+  @@map("friend_request_status")
+}
+
 enum ModerationAction {
   USER_SUSPENDED
   USER_UNSUSPENDED
@@ -101,6 +117,14 @@ model UserProfile {
   createdAt          DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt          DateTime      @default(now()) @map("updated_at") @db.Timestamptz(6)
   lastLoginAt        DateTime?     @map("last_login_at") @db.Timestamptz(6)
+  usernameChangedAt  DateTime?     @map("username_changed_at") @db.Timestamptz(6)
+  isDeactivated      Boolean       @default(false) @map("is_deactivated")
+  deactivatedAt      DateTime?     @map("deactivated_at") @db.Timestamptz(6)
+  deletionRequestedAt DateTime?    @map("deletion_requested_at") @db.Timestamptz(6)
+  deletionScheduledFor DateTime?   @map("deletion_scheduled_for") @db.Timestamptz(6)
+  deletionCancelledAt DateTime?    @map("deletion_cancelled_at") @db.Timestamptz(6)
+  deletionProcessedAt DateTime?    @map("deletion_processed_at") @db.Timestamptz(6)
+  deletionReason     String?       @map("deletion_reason")
 
   decks                Deck[]
   userCards            UserCard[]
@@ -117,11 +141,97 @@ model UserProfile {
   warningsIssued       UserWarning[]          @relation("WarningIssuer")
   warningsRevoked      UserWarning[]          @relation("WarningRevoker")
   auditLogs            AdminAuditLog[]
+  preferences          UserPreference?
+  friendRequestsSent   FriendRequest[]     @relation("FriendRequestSender")
+  friendRequestsReceived FriendRequest[]   @relation("FriendRequestReceiver")
+  friendshipsAsOne     Friendship[]        @relation("FriendshipUserOne")
+  friendshipsAsTwo     Friendship[]        @relation("FriendshipUserTwo")
+  blocksCreated        UserBlock[]          @relation("Blocker")
+  blocksReceived       UserBlock[]          @relation("Blocked")
+  securityEvents       UserSecurityEvent[]
 
   @@index([role], map: "user_profiles_role_idx")
   @@index([status], map: "user_profiles_status_idx")
   @@index([createdAt], map: "user_profiles_created_at_idx")
   @@map("user_profiles")
+}
+
+model UserPreference {
+  userId                        String            @id @map("user_id") @db.Uuid
+  profileVisibility             ProfileVisibility @default(PUBLIC) @map("profile_visibility")
+  allowFriendRequests           Boolean           @default(true) @map("allow_friend_requests")
+  appearInUserSearch            Boolean           @default(true) @map("appear_in_user_search")
+  showOnlineStatus              Boolean           @default(false) @map("show_online_status")
+  showCollectionStats           Boolean           @default(true) @map("show_collection_stats")
+  showGameStats                 Boolean           @default(true) @map("show_game_stats")
+  emailNotifications            Boolean           @default(true) @map("email_notifications")
+  friendRequestNotifications    Boolean           @default(true) @map("friend_request_notifications")
+  friendAcceptanceNotifications Boolean           @default(true) @map("friend_acceptance_notifications")
+  gameInviteNotifications       Boolean           @default(true) @map("game_invite_notifications")
+  gameNewsNotifications         Boolean           @default(true) @map("game_news_notifications")
+  marketingEmails               Boolean           @default(false) @map("marketing_emails")
+  createdAt                     DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                     DateTime          @default(now()) @map("updated_at") @db.Timestamptz(6)
+  user                          UserProfile       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_preferences")
+}
+
+model FriendRequest {
+  id             String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  senderUserId   String              @map("sender_user_id") @db.Uuid
+  receiverUserId String              @map("receiver_user_id") @db.Uuid
+  status         FriendRequestStatus @default(PENDING)
+  createdAt      DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime            @default(now()) @map("updated_at") @db.Timestamptz(6)
+  respondedAt    DateTime?           @map("responded_at") @db.Timestamptz(6)
+  sender         UserProfile         @relation("FriendRequestSender", fields: [senderUserId], references: [id], onDelete: Cascade)
+  receiver       UserProfile         @relation("FriendRequestReceiver", fields: [receiverUserId], references: [id], onDelete: Cascade)
+
+  @@index([receiverUserId, status, createdAt], map: "friend_requests_receiver_status_idx")
+  @@index([senderUserId, status, createdAt], map: "friend_requests_sender_status_idx")
+  @@map("friend_requests")
+}
+
+model Friendship {
+  id        String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userOneId String      @map("user_one_id") @db.Uuid
+  userTwoId String      @map("user_two_id") @db.Uuid
+  createdAt DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  userOne   UserProfile @relation("FriendshipUserOne", fields: [userOneId], references: [id], onDelete: Cascade)
+  userTwo   UserProfile @relation("FriendshipUserTwo", fields: [userTwoId], references: [id], onDelete: Cascade)
+
+  @@unique([userOneId, userTwoId], map: "friendships_pair_key")
+  @@index([userOneId, createdAt], map: "friendships_user_one_idx")
+  @@index([userTwoId, createdAt], map: "friendships_user_two_idx")
+  @@map("friendships")
+}
+
+model UserBlock {
+  blockerUserId String      @map("blocker_user_id") @db.Uuid
+  blockedUserId String      @map("blocked_user_id") @db.Uuid
+  createdAt     DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  blocker       UserProfile @relation("Blocker", fields: [blockerUserId], references: [id], onDelete: Cascade)
+  blocked       UserProfile @relation("Blocked", fields: [blockedUserId], references: [id], onDelete: Cascade)
+
+  @@id([blockerUserId, blockedUserId])
+  @@index([blockedUserId, createdAt], map: "user_blocks_blocked_idx")
+  @@map("user_blocks")
+}
+
+model UserSecurityEvent {
+  id        String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String?      @map("user_id") @db.Uuid
+  eventType String       @map("event_type")
+  metadata  Json         @default("{}")
+  ipHash    String?      @map("ip_hash")
+  userAgent String?      @map("user_agent")
+  createdAt DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  user      UserProfile? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt], map: "user_security_events_user_created_idx")
+  @@index([eventType, createdAt], map: "user_security_events_type_created_idx")
+  @@map("user_security_events")
 }
 
 model UserWarning {

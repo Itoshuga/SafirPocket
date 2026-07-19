@@ -1,4 +1,4 @@
-export type Json =
+﻿export type Json =
   | string
   | number
   | boolean
@@ -11,31 +11,6 @@ export type Database = {
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
     PostgrestVersion: "14.5"
-  }
-  graphql_public: {
-    Tables: {
-      [_ in never]: never
-    }
-    Views: {
-      [_ in never]: never
-    }
-    Functions: {
-      graphql: {
-        Args: {
-          extensions?: Json
-          operationName?: string
-          query?: string
-          variables?: Json
-        }
-        Returns: Json
-      }
-    }
-    Enums: {
-      [_ in never]: never
-    }
-    CompositeTypes: {
-      [_ in never]: never
-    }
   }
   public: {
     Tables: {
@@ -704,6 +679,87 @@ export type Database = {
           },
         ]
       }
+      friend_requests: {
+        Row: {
+          created_at: string
+          id: string
+          receiver_user_id: string
+          responded_at: string | null
+          sender_user_id: string
+          status: Database["public"]["Enums"]["friend_request_status"]
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          receiver_user_id: string
+          responded_at?: string | null
+          sender_user_id: string
+          status?: Database["public"]["Enums"]["friend_request_status"]
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          receiver_user_id?: string
+          responded_at?: string | null
+          sender_user_id?: string
+          status?: Database["public"]["Enums"]["friend_request_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "friend_requests_receiver_user_id_fkey"
+            columns: ["receiver_user_id"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "friend_requests_sender_user_id_fkey"
+            columns: ["sender_user_id"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      friendships: {
+        Row: {
+          created_at: string
+          id: string
+          user_one_id: string
+          user_two_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          user_one_id: string
+          user_two_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          user_one_id?: string
+          user_two_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "friendships_user_one_id_fkey"
+            columns: ["user_one_id"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "friendships_user_two_id_fkey"
+            columns: ["user_two_id"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       match_events: {
         Row: {
           actor_id: string | null
@@ -1068,6 +1124,39 @@ export type Database = {
         }
         Relationships: []
       }
+      user_blocks: {
+        Row: {
+          blocked_user_id: string
+          blocker_user_id: string
+          created_at: string
+        }
+        Insert: {
+          blocked_user_id: string
+          blocker_user_id: string
+          created_at?: string
+        }
+        Update: {
+          blocked_user_id?: string
+          blocker_user_id?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_blocks_blocked_user_id_fkey"
+            columns: ["blocked_user_id"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_blocks_blocker_user_id_fkey"
+            columns: ["blocker_user_id"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_cards: {
         Row: {
           card_variant_id: string
@@ -1218,14 +1307,83 @@ export type Database = {
           },
         ]
       }
+      user_preferences: {
+        Row: {
+          allow_friend_requests: boolean
+          appear_in_user_search: boolean
+          created_at: string
+          email_notifications: boolean
+          friend_acceptance_notifications: boolean
+          friend_request_notifications: boolean
+          game_invite_notifications: boolean
+          game_news_notifications: boolean
+          marketing_emails: boolean
+          profile_visibility: Database["public"]["Enums"]["profile_visibility"]
+          show_collection_stats: boolean
+          show_game_stats: boolean
+          show_online_status: boolean
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          allow_friend_requests?: boolean
+          appear_in_user_search?: boolean
+          created_at?: string
+          email_notifications?: boolean
+          friend_acceptance_notifications?: boolean
+          friend_request_notifications?: boolean
+          game_invite_notifications?: boolean
+          game_news_notifications?: boolean
+          marketing_emails?: boolean
+          profile_visibility?: Database["public"]["Enums"]["profile_visibility"]
+          show_collection_stats?: boolean
+          show_game_stats?: boolean
+          show_online_status?: boolean
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          allow_friend_requests?: boolean
+          appear_in_user_search?: boolean
+          created_at?: string
+          email_notifications?: boolean
+          friend_acceptance_notifications?: boolean
+          friend_request_notifications?: boolean
+          game_invite_notifications?: boolean
+          game_news_notifications?: boolean
+          marketing_emails?: boolean
+          profile_visibility?: Database["public"]["Enums"]["profile_visibility"]
+          show_collection_stats?: boolean
+          show_game_stats?: boolean
+          show_online_status?: boolean
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_preferences_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_profiles: {
         Row: {
           avatar_url: string | null
           bio: string | null
           created_at: string
+          deactivated_at: string | null
+          deletion_cancelled_at: string | null
+          deletion_processed_at: string | null
+          deletion_reason: string | null
+          deletion_requested_at: string | null
+          deletion_scheduled_for: string | null
           display_name: string | null
           email: string
           id: string
+          is_deactivated: boolean
           last_login_at: string | null
           must_change_password: boolean
           normalized_username: string
@@ -1234,14 +1392,22 @@ export type Database = {
           suspended_until: string | null
           updated_at: string
           username: string
+          username_changed_at: string | null
         }
         Insert: {
           avatar_url?: string | null
           bio?: string | null
           created_at?: string
+          deactivated_at?: string | null
+          deletion_cancelled_at?: string | null
+          deletion_processed_at?: string | null
+          deletion_reason?: string | null
+          deletion_requested_at?: string | null
+          deletion_scheduled_for?: string | null
           display_name?: string | null
           email: string
           id: string
+          is_deactivated?: boolean
           last_login_at?: string | null
           must_change_password?: boolean
           normalized_username: string
@@ -1250,14 +1416,22 @@ export type Database = {
           suspended_until?: string | null
           updated_at?: string
           username: string
+          username_changed_at?: string | null
         }
         Update: {
           avatar_url?: string | null
           bio?: string | null
           created_at?: string
+          deactivated_at?: string | null
+          deletion_cancelled_at?: string | null
+          deletion_processed_at?: string | null
+          deletion_reason?: string | null
+          deletion_requested_at?: string | null
+          deletion_scheduled_for?: string | null
           display_name?: string | null
           email?: string
           id?: string
+          is_deactivated?: boolean
           last_login_at?: string | null
           must_change_password?: boolean
           normalized_username?: string
@@ -1266,8 +1440,47 @@ export type Database = {
           suspended_until?: string | null
           updated_at?: string
           username?: string
+          username_changed_at?: string | null
         }
         Relationships: []
+      }
+      user_security_events: {
+        Row: {
+          created_at: string
+          event_type: string
+          id: string
+          ip_hash: string | null
+          metadata: Json
+          user_agent: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          event_type: string
+          id?: string
+          ip_hash?: string | null
+          metadata?: Json
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          event_type?: string
+          id?: string
+          ip_hash?: string | null
+          metadata?: Json
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_security_events_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_warnings: {
         Row: {
@@ -1388,6 +1601,7 @@ export type Database = {
       account_status: "ACTIVE" | "SUSPENDED" | "BANNED"
       app_role: "USER" | "PIONEER" | "MODERATOR" | "ADMINISTRATOR"
       deck_visibility: "private" | "unlisted" | "public"
+      friend_request_status: "PENDING" | "ACCEPTED" | "DECLINED" | "CANCELLED"
       match_status: "pending" | "active" | "completed" | "cancelled"
       mission_status: "active" | "completed" | "claimed" | "expired"
       moderation_action:
@@ -1399,6 +1613,7 @@ export type Database = {
         | "PIONEER_GRANTED"
         | "PIONEER_REVOKED"
       pack_opening_status: "pending" | "completed" | "failed"
+      profile_visibility: "PUBLIC" | "PRIVATE"
       publication_status: "draft" | "published" | "archived"
       user_role: "user" | "moderator" | "admin"
       warning_severity: "LOW" | "MEDIUM" | "HIGH"
@@ -1527,14 +1742,12 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
-  graphql_public: {
-    Enums: {},
-  },
   public: {
     Enums: {
       account_status: ["ACTIVE", "SUSPENDED", "BANNED"],
       app_role: ["USER", "PIONEER", "MODERATOR", "ADMINISTRATOR"],
       deck_visibility: ["private", "unlisted", "public"],
+      friend_request_status: ["PENDING", "ACCEPTED", "DECLINED", "CANCELLED"],
       match_status: ["pending", "active", "completed", "cancelled"],
       mission_status: ["active", "completed", "claimed", "expired"],
       moderation_action: [
@@ -1547,6 +1760,7 @@ export const Constants = {
         "PIONEER_REVOKED",
       ],
       pack_opening_status: ["pending", "completed", "failed"],
+      profile_visibility: ["PUBLIC", "PRIVATE"],
       publication_status: ["draft", "published", "archived"],
       user_role: ["user", "moderator", "admin"],
       warning_severity: ["LOW", "MEDIUM", "HIGH"],

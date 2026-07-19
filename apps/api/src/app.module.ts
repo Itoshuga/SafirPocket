@@ -23,6 +23,9 @@ import { PrismaModule } from './prisma/prisma.module.js';
 import { ProfilesModule } from './profiles/profiles.module.js';
 import { RankingsModule } from './rankings/rankings.module.js';
 import { RedisModule } from './redis/redis.module.js';
+import { UsersModule } from './users/users.module.js';
+import { SocialModule } from './social/social.module.js';
+import { AccountModule } from './account/account.module.js';
 
 @Module({
   imports: [
@@ -62,6 +65,9 @@ import { RedisModule } from './redis/redis.module.js';
     MatchmakingModule,
     RankingsModule,
     AdminModule,
+    UsersModule,
+    SocialModule,
+    AccountModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

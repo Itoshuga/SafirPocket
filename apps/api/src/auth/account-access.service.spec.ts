@@ -37,6 +37,24 @@ describe('AccountAccessService', () => {
     await expect(service.ensureActive(activeProfile.id)).rejects.toBeInstanceOf(ForbiddenException);
   });
 
+  it('blocks a voluntarily deactivated account unless the route explicitly allows it', async () => {
+    const prisma = {
+      userProfile: {
+        findUnique: vi.fn().mockResolvedValue({
+          ...activeProfile,
+          isDeactivated: true,
+          deletionScheduledFor: null,
+        }),
+        update: vi.fn(),
+      },
+    };
+    const service = new AccountAccessService(prisma as never);
+    await expect(service.ensureActive(activeProfile.id)).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(
+      service.ensureActive(activeProfile.id, null, '', null, { allowDeactivated: true }),
+    ).resolves.toMatchObject({ id: activeProfile.id, isDeactivated: true });
+  });
+
   it('expires a suspension atomically and records moderation plus audit history', async () => {
     const expiredAt = new Date(Date.now() - 60_000);
     const userProfile = {

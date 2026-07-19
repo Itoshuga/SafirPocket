@@ -9,6 +9,11 @@ import {
   temporaryPasswordSchema,
   usernameSchema,
   warningCreateSchema,
+  profileUpdateSchema,
+  userPreferencesUpdateSchema,
+  userSearchQuerySchema,
+  accountDeletionRequestSchema,
+  accountPasswordUpdateSchema,
 } from './index.js';
 
 describe('shared validation', () => {
@@ -106,6 +111,36 @@ describe('shared validation', () => {
     ).toBe(false);
     expect(
       warningCreateSchema.safeParse({ reason: 'Rappel des règles', severity: 'CRITICAL' }).success,
+    ).toBe(false);
+  });
+
+  it('limits biographies and validates persisted privacy preferences', () => {
+    expect(profileUpdateSchema.safeParse({ bio: 'x'.repeat(301) }).success).toBe(false);
+    expect(userPreferencesUpdateSchema.safeParse({ profileVisibility: 'PRIVATE' }).success).toBe(
+      true,
+    );
+    expect(userPreferencesUpdateSchema.safeParse({}).success).toBe(false);
+  });
+
+  it('bounds user search pagination against mass enumeration', () => {
+    expect(userSearchQuerySchema.safeParse({ query: 'l', pageSize: 20 }).success).toBe(false);
+    expect(userSearchQuerySchema.safeParse({ query: 'lucas', pageSize: 500 }).success).toBe(false);
+  });
+
+  it('requires strong confirmation for password and deletion actions', () => {
+    expect(
+      accountPasswordUpdateSchema.safeParse({
+        password: 'Secure-password-42!',
+        confirmPassword: 'different',
+        reauthenticationNonce: '123456',
+      }).success,
+    ).toBe(false);
+    expect(
+      accountDeletionRequestSchema.safeParse({
+        confirmationUsername: 'lucas',
+        confirmed: false,
+        reason: null,
+      }).success,
     ).toBe(false);
   });
 });

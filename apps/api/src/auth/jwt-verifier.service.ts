@@ -42,6 +42,7 @@ export class JwtVerifierService {
     return {
       id: payload.sub,
       email: typeof payload.email === 'string' ? payload.email : null,
+      issuedAt: typeof payload.iat === 'number' ? payload.iat : null,
     };
   }
 }

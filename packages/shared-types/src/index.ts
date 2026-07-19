@@ -1,6 +1,9 @@
 export type AppRole = 'USER' | 'PIONEER' | 'MODERATOR' | 'ADMINISTRATOR';
 export type UserRole = AppRole;
 export type AccountStatus = 'ACTIVE' | 'SUSPENDED' | 'BANNED';
+export type ProfileVisibility = 'PUBLIC' | 'PRIVATE';
+export type FriendRequestStatus = 'PENDING' | 'ACCEPTED' | 'DECLINED' | 'CANCELLED';
+export type FriendshipStatus = 'NONE' | 'PENDING_SENT' | 'PENDING_RECEIVED' | 'FRIENDS' | 'BLOCKED';
 
 export const ROLE_LABELS: Record<AppRole, string> = {
   USER: 'Utilisateur',
@@ -127,6 +130,102 @@ export interface UserProfile extends PublicUser {
   updatedAt: string;
   lastLoginAt: string | null;
   mustChangePassword: boolean;
+  usernameChangedAt: string | null;
+  usernameChangeAvailableAt: string | null;
+  isDeactivated: boolean;
+  deactivatedAt: string | null;
+  deletion: AccountDeletionStatus;
+}
+
+export interface UserPreferences {
+  userId: string;
+  profileVisibility: ProfileVisibility;
+  allowFriendRequests: boolean;
+  appearInUserSearch: boolean;
+  showOnlineStatus: boolean;
+  showCollectionStats: boolean;
+  showGameStats: boolean;
+  emailNotifications: boolean;
+  friendRequestNotifications: boolean;
+  friendAcceptanceNotifications: boolean;
+  gameInviteNotifications: boolean;
+  gameNewsNotifications: boolean;
+  marketingEmails: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PublicProfileStats {
+  friendsCount: number;
+  cardsCount?: number;
+  uniqueCardsCount?: number;
+  decksCount?: number;
+  matchCount?: number;
+  wins?: number;
+  currentRating?: number | null;
+  currentRank?: number | null;
+}
+
+export interface PublicUserProfile {
+  username: string;
+  displayName: string | null;
+  avatarUrl: string | null;
+  bio: string | null;
+  isPioneer: boolean;
+  profileVisibility: ProfileVisibility;
+  createdAt: string;
+  publicStats: PublicProfileStats;
+  friendship?: { status: FriendshipStatus };
+}
+
+export interface FriendUser {
+  id: string;
+  username: string;
+  displayName: string | null;
+  avatarUrl: string | null;
+  isPioneer: boolean;
+}
+
+export interface FriendRequest {
+  id: string;
+  status: FriendRequestStatus;
+  sender: FriendUser;
+  receiver: FriendUser;
+  createdAt: string;
+  updatedAt: string;
+  respondedAt: string | null;
+}
+
+export interface Friendship {
+  id: string;
+  user: FriendUser;
+  createdAt: string;
+}
+
+export interface BlockedUser {
+  user: FriendUser;
+  blockedAt: string;
+}
+
+export interface UserSearchResult extends FriendUser {
+  profileVisibility: ProfileVisibility;
+  friendshipStatus: FriendshipStatus;
+}
+
+export interface AccountDeletionStatus {
+  state: 'NONE' | 'SCHEDULED' | 'CANCELLED' | 'PROCESSED';
+  requestedAt: string | null;
+  scheduledFor: string | null;
+  cancelledAt: string | null;
+  processedAt: string | null;
+}
+
+export interface AccountSecuritySettings {
+  email: string;
+  securityEmailsEnabled: true;
+  isDeactivated: boolean;
+  deactivatedAt: string | null;
+  deletion: AccountDeletionStatus;
 }
 
 export type AdminUserListItem = UserProfile;
@@ -461,6 +560,7 @@ export interface ProfileSummary {
   wins: number;
   currentRating: number | null;
   currentRank: number | null;
+  friendsCount: number;
 }
 
 export interface BoosterProductSummary {

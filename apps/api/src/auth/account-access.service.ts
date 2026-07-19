@@ -8,11 +8,21 @@ const loginWriteIntervalMs = 15 * 60 * 1000;
 export class AccountAccessService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async authenticate(identity: VerifiedAuthUser): Promise<AuthenticatedUser> {
-    return this.ensureActive(identity.id, identity.email);
+  async authenticate(
+    identity: VerifiedAuthUser,
+    accessToken = '',
+    options: { allowDeactivated?: boolean } = {},
+  ): Promise<AuthenticatedUser> {
+    return this.ensureActive(identity.id, identity.email, accessToken, identity.issuedAt, options);
   }
 
-  async ensureActive(userId: string, tokenEmail: string | null = null): Promise<AuthenticatedUser> {
+  async ensureActive(
+    userId: string,
+    tokenEmail: string | null = null,
+    accessToken = '',
+    issuedAt: number | null = null,
+    options: { allowDeactivated?: boolean } = {},
+  ): Promise<AuthenticatedUser> {
     let profile = await this.prisma.userProfile.findUnique({ where: { id: userId } });
     if (!profile) {
       throw new UnauthorizedException({
@@ -74,9 +84,20 @@ export class AccountAccessService {
       });
     }
 
+    if (profile.isDeactivated && !options.allowDeactivated) {
+      throw new ForbiddenException({
+        code: 'ACCOUNT_DEACTIVATED',
+        message: 'Ce compte est désactivé. Confirmez sa réactivation pour continuer.',
+        details: {
+          deletionScheduledFor: profile.deletionScheduledFor?.toISOString() ?? null,
+        },
+      });
+    }
+
     if (
-      !profile.lastLoginAt ||
-      now.getTime() - profile.lastLoginAt.getTime() >= loginWriteIntervalMs
+      !profile.isDeactivated &&
+      (!profile.lastLoginAt ||
+        now.getTime() - profile.lastLoginAt.getTime() >= loginWriteIntervalMs)
     ) {
       await this.prisma.userProfile.update({
         where: { id: profile.id },
@@ -91,6 +112,9 @@ export class AccountAccessService {
       role: profile.role,
       status: 'ACTIVE',
       suspendedUntil: null,
+      isDeactivated: profile.isDeactivated,
+      accessToken,
+      issuedAt,
     };
   }
 }

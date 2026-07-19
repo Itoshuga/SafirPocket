@@ -261,3 +261,15 @@ Les tests couvrent notamment santé, JWT invalide, contrat du trigger d’inscri
 - **Session en boucle** : vérifiez `site_url`, l’URL `/auth/callback` et les deux variables publiques Supabase.
 - **CORS Socket.IO/REST** : `WEB_ORIGIN` définit l’origine principale et `WEB_ORIGINS` les origines supplémentaires autorisées, séparées par des virgules.
 - **Types après migration** : ne lancez pas Prisma Migrate; actualisez le reflet Prisma, générez le client et relancez les vérifications.
+
+## Espace personnel
+
+`/profile`, `/users/[username]` et `/settings/*` couvrent le profil public ou privé, les
+préférences persistées, les amis, les blocages et le cycle volontaire du compte. La migration
+`20260719110000_personal_space_social_account_lifecycle.sql` ajoute les tables et champs associés.
+La suppression est programmée avec 30 jours de grâce; le traitement final pseudonymise les
+historiques nécessaires et supprime Supabase Auth en dernier.
+
+Voir [docs/personal-space.md](docs/personal-space.md) pour les routes, endpoints, règles RLS,
+différences entre confidentialité, désactivation et modération, ainsi que la stratégie
+d'anonymisation.

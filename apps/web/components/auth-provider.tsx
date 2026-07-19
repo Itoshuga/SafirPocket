@@ -71,9 +71,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       role: profile?.role ?? 'USER',
       refreshProfile: async () => loadProfile(user),
       signOut: async () => {
-        if (isSupabaseConfigured) await getSupabaseBrowserClient().auth.signOut();
-        setUser(null);
-        setProfile(null);
+        try {
+          if (isSupabaseConfigured) await getSupabaseBrowserClient().auth.signOut();
+        } finally {
+          setUser(null);
+          setProfile(null);
+        }
       },
     }),
     [loadProfile, loading, profile, user],

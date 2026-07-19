@@ -1,6 +1,6 @@
 'use client';
 
-import type { UsernameAvailability } from '@safir/shared-types';
+import type { AccountSecuritySettings, UsernameAvailability } from '@safir/shared-types';
 import { Button, ErrorState, Input } from '@safir/ui';
 import { credentialsSchema, signupSchema, usernameSchema } from '@safir/validation';
 import { useSearchParams } from 'next/navigation';
@@ -112,7 +112,18 @@ export function LoginForm() {
     if (mode === 'signup' && !result.data.session) {
       setMessage('Compte créé. Consultez votre e-mail pour confirmer votre inscription.');
     } else {
-      window.location.assign(safeInternalPath(search.get('next'), '/collection'));
+      try {
+        const account = await apiFetch<AccountSecuritySettings>(
+          '/api/v1/me/account/security-settings',
+        );
+        window.location.assign(
+          account.isDeactivated
+            ? '/settings/account'
+            : safeInternalPath(search.get('next'), '/collection'),
+        );
+      } catch {
+        window.location.assign(safeInternalPath(search.get('next'), '/collection'));
+      }
     }
   });
 

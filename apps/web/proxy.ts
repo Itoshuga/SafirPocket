@@ -3,7 +3,15 @@ import { type NextRequest, NextResponse } from 'next/server';
 import { isSupabaseConfigured, publicEnv } from './lib/env';
 import { safeInternalPath } from './lib/navigation';
 
-const privatePrefixes = ['/collection', '/decks', '/boosters', '/play', '/profile', '/admin'];
+const privatePrefixes = [
+  '/collection',
+  '/decks',
+  '/boosters',
+  '/play',
+  '/profile',
+  '/settings',
+  '/admin',
+];
 
 function loginRedirect(request: NextRequest, reason?: string) {
   const loginUrl = new URL('/login', request.url);
@@ -23,7 +31,8 @@ export async function proxy(request: NextRequest) {
   );
   const e2eAuthSecret = process.env.E2E_MOCK_AUTH_SECRET;
   const hasE2eAuth =
-    process.env.NODE_ENV !== 'production' &&
+    process.env.E2E_ALLOW_MOCK_AUTH === 'true' &&
+    ['localhost', '127.0.0.1'].includes(request.nextUrl.hostname) &&
     Boolean(e2eAuthSecret) &&
     request.cookies.get('safir-e2e-auth')?.value === e2eAuthSecret;
   if (hasE2eAuth) return response;

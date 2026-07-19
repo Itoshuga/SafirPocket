@@ -34,6 +34,12 @@ Lire avant toute modification : `README.md`, `docs/security.md`, `supabase/migra
     réintroduire de barre horizontale ou de tabs de navigation dans les layouts `/admin`.
 18. Aucun mot de passe actuel, temporaire ou token de reset ne doit être lu, retourné ou journalisé. Les changements de mot de passe et d'e-mail passent exclusivement par Supabase Auth depuis l'API.
 19. Les avertissements sont révoqués, jamais supprimés; avertissements, suspensions, bannissements et changements de rôle restent historisés et audités.
+20. La confidentialité, la désactivation volontaire et la modération sont trois états distincts. Une
+    réactivation ne contourne jamais une suspension ou un bannissement.
+21. Les demandes d'amis, amitiés et blocages sont validés et mutés transactionnellement par l'API;
+    ne pas accorder leurs mutations directement au client par RLS.
+22. La suppression utilisateur suit la période de grâce et la stratégie d'anonymisation de
+    `docs/personal-space.md`; Supabase Auth est supprimé en dernier.
 
 ## Chaîne de changement
 

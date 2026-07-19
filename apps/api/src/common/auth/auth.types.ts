@@ -3,6 +3,7 @@ import type { AccountStatus, AppRole } from '@safir/shared-types';
 export interface VerifiedAuthUser {
   id: string;
   email: string | null;
+  issuedAt?: number | null;
 }
 
 export interface AuthenticatedUser {
@@ -12,6 +13,9 @@ export interface AuthenticatedUser {
   role: AppRole;
   status: AccountStatus;
   suspendedUntil: Date | null;
+  isDeactivated?: boolean;
+  accessToken?: string;
+  issuedAt?: number | null;
 }
 
 declare module 'http' {

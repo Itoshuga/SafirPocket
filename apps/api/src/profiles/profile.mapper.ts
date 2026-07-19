@@ -2,6 +2,16 @@ import { ACCOUNT_STATUS_LABELS, ROLE_LABELS, type UserProfile } from '@safir/sha
 import type { UserProfile as DatabaseUserProfile } from '../generated/prisma/client.js';
 
 export function toUserProfile(profile: DatabaseUserProfile): UserProfile {
+  const usernameChangeAvailableAt = profile.usernameChangedAt
+    ? new Date(profile.usernameChangedAt.getTime() + 30 * 24 * 60 * 60 * 1000)
+    : null;
+  const deletionState = profile.deletionProcessedAt
+    ? 'PROCESSED'
+    : profile.deletionCancelledAt
+      ? 'CANCELLED'
+      : profile.deletionRequestedAt
+        ? 'SCHEDULED'
+        : 'NONE';
   return {
     id: profile.id,
     username: profile.username,
@@ -19,5 +29,16 @@ export function toUserProfile(profile: DatabaseUserProfile): UserProfile {
     createdAt: profile.createdAt.toISOString(),
     updatedAt: profile.updatedAt.toISOString(),
     lastLoginAt: profile.lastLoginAt?.toISOString() ?? null,
+    usernameChangedAt: profile.usernameChangedAt?.toISOString() ?? null,
+    usernameChangeAvailableAt: usernameChangeAvailableAt?.toISOString() ?? null,
+    isDeactivated: profile.isDeactivated,
+    deactivatedAt: profile.deactivatedAt?.toISOString() ?? null,
+    deletion: {
+      state: deletionState,
+      requestedAt: profile.deletionRequestedAt?.toISOString() ?? null,
+      scheduledFor: profile.deletionScheduledFor?.toISOString() ?? null,
+      cancelledAt: profile.deletionCancelledAt?.toISOString() ?? null,
+      processedAt: profile.deletionProcessedAt?.toISOString() ?? null,
+    },
   };
 }

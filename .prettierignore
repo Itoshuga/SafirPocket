@@ -1,9 +1,11 @@
 node_modules
 .next
+.next-e2e
 dist
 coverage
 playwright-report
 test-results
 pnpm-lock.yaml
 apps/api/src/generated
+apps/web/next-env.d.ts
 packages/shared-types/src/database.generated.ts

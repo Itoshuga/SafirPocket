@@ -1,6 +1,7 @@
 import { hasPermission, type AppPermission, type AppRole } from '@safir/shared-types';
 import {
   BookOpen,
+  Bell,
   Boxes,
   CalendarRange,
   ChartNoAxesColumnIncreasing,
@@ -16,6 +17,9 @@ import {
   Swords,
   Tags,
   Users,
+  LockKeyhole,
+  UserCog,
+  UserRoundCheck,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -159,6 +163,49 @@ export const adminNavigationGroup = {
 } as const satisfies NavigationGroup;
 
 export const mobilePrimaryHrefs = new Set(['/cards', '/collection', '/decks', '/boosters']);
+
+export const settingsNavigationItems = [
+  {
+    key: 'settings-profile',
+    href: '/settings/profile',
+    label: 'Profil',
+    icon: UserCog,
+    match: 'exact',
+    requiresAuthentication: true,
+  },
+  {
+    key: 'settings-privacy',
+    href: '/settings/privacy',
+    label: 'Confidentialité',
+    icon: LockKeyhole,
+    match: 'exact',
+    requiresAuthentication: true,
+  },
+  {
+    key: 'settings-notifications',
+    href: '/settings/notifications',
+    label: 'Notifications',
+    icon: Bell,
+    match: 'exact',
+    requiresAuthentication: true,
+  },
+  {
+    key: 'settings-account',
+    href: '/settings/account',
+    label: 'Compte',
+    icon: CircleUserRound,
+    match: 'exact',
+    requiresAuthentication: true,
+  },
+  {
+    key: 'settings-friends',
+    href: '/settings/friends',
+    label: 'Amis',
+    icon: UserRoundCheck,
+    match: 'exact',
+    requiresAuthentication: true,
+  },
+] as const satisfies readonly NavigationItem[];
 
 function normalizePathname(pathname: string): string {
   const path = pathname.split(/[?#]/, 1)[0] || '/';

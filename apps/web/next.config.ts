@@ -11,6 +11,7 @@ try {
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  distDir: process.env.E2E_MOCK_AUTH_SECRET ? '.next-e2e' : '.next',
   allowedDevOrigins: [...allowedDevOrigins],
   transpilePackages: ['@safir/ui', '@safir/shared-types', '@safir/validation'],
   poweredByHeader: false,

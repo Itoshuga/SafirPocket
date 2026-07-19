@@ -18,5 +18,16 @@
 - L'adresse de connexion est modifiée via Supabase Auth Admin, puis synchronisée dans `user_profiles`. Une transaction applicative en échec déclenche une compensation Auth; si elle échoue aussi, l'API signale explicitement qu'une réparation est requise.
 - Un administrateur peut déclencher un reset ou définir un mot de passe temporaire, mais ne peut jamais consulter le mot de passe actuel. Les mots de passe restent exclusivement dans Supabase Authentication et sont exclus des logs et de l'audit.
 - Les protections d'affichage frontend ne remplacent jamais les guards de permissions, le contrôle de hiérarchie, les transactions et RLS côté serveur.
+- Les préférences de confidentialité sont persistées dans `user_preferences`. Le profil public et
+  la recherche appliquent ces choix côté API sans retourner d'e-mail ou de statut de modération.
+- Les demandes d'amis, acceptations et blocages sont transactionnels. Un index de paire empêche les
+  demandes inversées simultanées; un blocage annule les demandes et l'amitié sans notifier la cible.
+- La désactivation volontaire reste distincte de `SUSPENDED` et `BANNED`. Les routes de
+  réactivation vérifient toujours le statut administratif.
+- Les changements d'e-mail et de mot de passe utilisent Supabase Auth sous le bearer de
+  l'utilisateur. `user_security_events` ne stocke ni mot de passe, ni token, ni adresse IP brute.
+- La suppression définitive est différée de 30 jours. Le service final pseudonymise l'identité,
+  minimise les audits et supprime l'utilisateur Auth en dernier; son ordonnanceur de production
+  reste à configurer. Voir `docs/personal-space.md`.
 
 Voir `docs/administration.md` pour la matrice fonctionnelle et les procédures de migration.

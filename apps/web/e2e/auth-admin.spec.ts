@@ -197,6 +197,23 @@ async function mockAdminApi(page: Page, actorProfile = profile) {
     const url = new URL(request.url());
     const path = url.pathname;
     if (path.endsWith('/me/profile')) return route.fulfill({ json: actorProfile });
+    if (path.endsWith('/me/account/security-settings')) {
+      return route.fulfill({
+        json: {
+          email: actorProfile.email,
+          securityEmailsEnabled: true,
+          isDeactivated: false,
+          deactivatedAt: null,
+          deletion: {
+            state: 'NONE',
+            requestedAt: null,
+            scheduledFor: null,
+            cancelledAt: null,
+            processedAt: null,
+          },
+        },
+      });
+    }
     if (path.endsWith('/me/collection/summary')) {
       return route.fulfill({
         json: {

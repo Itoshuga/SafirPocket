@@ -4,6 +4,7 @@ export const idSchema = z.uuid();
 
 export const appRoleSchema = z.enum(['USER', 'PIONEER', 'MODERATOR', 'ADMINISTRATOR']);
 export const accountStatusSchema = z.enum(['ACTIVE', 'SUSPENDED', 'BANNED']);
+export const profileVisibilitySchema = z.enum(['PUBLIC', 'PRIVATE']);
 
 export const usernameSchema = z
   .string()
@@ -49,10 +50,99 @@ export const profileUpdateSchema = z
   .object({
     username: usernameSchema,
     displayName: nullableTrimmedString(50),
-    bio: nullableTrimmedString(500),
+    bio: nullableTrimmedString(300),
     avatarUrl: nullableTrimmedString(2048),
   })
   .partial()
+  .strict();
+
+export const userPreferencesUpdateSchema = z
+  .object({
+    profileVisibility: profileVisibilitySchema,
+    allowFriendRequests: z.boolean(),
+    appearInUserSearch: z.boolean(),
+    showOnlineStatus: z.boolean(),
+    showCollectionStats: z.boolean(),
+    showGameStats: z.boolean(),
+    emailNotifications: z.boolean(),
+    friendRequestNotifications: z.boolean(),
+    friendAcceptanceNotifications: z.boolean(),
+    gameInviteNotifications: z.boolean(),
+    gameNewsNotifications: z.boolean(),
+    marketingEmails: z.boolean(),
+  })
+  .partial()
+  .strict()
+  .refine((input) => Object.keys(input).length > 0, {
+    message: 'Aucune préférence à enregistrer.',
+  });
+
+export const userSearchQuerySchema = z.object({
+  query: z.string().trim().min(2, 'Saisissez au moins 2 caractères.').max(50),
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(50).default(20),
+});
+
+export const friendActionSchema = z.object({}).strict();
+
+const reauthenticationNonceSchema = z
+  .string()
+  .trim()
+  .regex(/^\d{6}$/, 'Saisissez le code de réauthentification à 6 chiffres.');
+
+const strongPasswordSchema = z
+  .string()
+  .min(12, 'Le mot de passe doit contenir au moins 12 caractères.')
+  .max(128)
+  .regex(/[a-z]/, 'Ajoutez une lettre minuscule.')
+  .regex(/[A-Z]/, 'Ajoutez une lettre majuscule.')
+  .regex(/[0-9]/, 'Ajoutez un chiffre.')
+  .regex(/[^A-Za-z0-9]/, 'Ajoutez un caractère spécial.');
+
+export const accountEmailUpdateSchema = z
+  .object({
+    email: z.email('Saisissez une adresse e-mail valide.').trim().max(320),
+    reauthenticationNonce: reauthenticationNonceSchema,
+  })
+  .strict();
+
+export const accountPasswordUpdateSchema = z
+  .object({
+    password: strongPasswordSchema,
+    confirmPassword: z.string().max(128),
+    reauthenticationNonce: reauthenticationNonceSchema,
+  })
+  .strict()
+  .refine(({ password, confirmPassword }) => password === confirmPassword, {
+    path: ['confirmPassword'],
+    message: 'Les mots de passe ne correspondent pas.',
+  });
+
+export const accountReauthenticationSchema = z.object({}).strict();
+
+export const accountSessionsRevokeSchema = z.object({ confirmation: z.literal(true) }).strict();
+
+export const accountDeactivateSchema = z
+  .object({
+    confirmationUsername: usernameSchema,
+    confirmed: z.literal(true),
+  })
+  .strict();
+
+export const accountReactivateSchema = z
+  .object({ confirmationUsername: usernameSchema, confirmed: z.literal(true) })
+  .strict();
+
+export const accountDeletionRequestSchema = z
+  .object({
+    confirmationUsername: usernameSchema,
+    confirmed: z.literal(true),
+    reason: nullableTrimmedString(500),
+  })
+  .strict();
+
+export const accountDeletionCancelSchema = z
+  .object({ confirmationUsername: usernameSchema, confirmed: z.literal(true) })
   .strict();
 
 export const paginationSchema = z.object({
@@ -383,3 +473,11 @@ export type DeckCreateInput = z.infer<typeof deckCreateSchema>;
 export type DeckUpdateInput = z.infer<typeof deckUpdateSchema>;
 export type DeckCardInput = z.infer<typeof deckCardSchema>;
 export type ProfileUpdateInput = z.infer<typeof profileUpdateSchema>;
+export type UserPreferencesUpdateInput = z.infer<typeof userPreferencesUpdateSchema>;
+export type UserSearchQuery = z.infer<typeof userSearchQuerySchema>;
+export type AccountEmailUpdateInput = z.infer<typeof accountEmailUpdateSchema>;
+export type AccountPasswordUpdateInput = z.infer<typeof accountPasswordUpdateSchema>;
+export type AccountDeactivateInput = z.infer<typeof accountDeactivateSchema>;
+export type AccountReactivateInput = z.infer<typeof accountReactivateSchema>;
+export type AccountDeletionRequestInput = z.infer<typeof accountDeletionRequestSchema>;
+export type AccountDeletionCancelInput = z.infer<typeof accountDeletionCancelSchema>;

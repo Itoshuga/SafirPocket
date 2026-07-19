@@ -286,16 +286,18 @@ export function Switch({
   onCheckedChange,
   label,
   disabled,
+  labelHidden = false,
 }: {
   id: string;
   checked?: boolean;
   onCheckedChange?: (checked: boolean) => void;
   label: string;
   disabled?: boolean;
+  labelHidden?: boolean;
 }) {
   return (
     <label htmlFor={id} className="flex items-center justify-between gap-4 text-sm font-medium">
-      {label}
+      <span className={labelHidden ? 'sr-only' : undefined}>{label}</span>
       <SwitchPrimitive.Root
         id={id}
         checked={checked}
