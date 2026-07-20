@@ -1,6 +1,6 @@
-import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
-import { boosterOpenSchema, idSchema } from '@safir/validation';
+import { idSchema, openBoosterSchema, packOpeningsQuerySchema } from '@safir/validation';
 import { CurrentUser } from '../common/auth/current-user.decorator.js';
 import type { AuthenticatedUser } from '../common/auth/auth.types.js';
 import { Public } from '../common/auth/public.decorator.js';
@@ -17,11 +17,33 @@ export class BoostersController {
     return this.boosters.listProducts();
   }
 
+  @Public()
+  @Get('booster-products/:id')
+  get(@Param('id') id: string) {
+    return this.boosters.getProduct(parseInput(idSchema, id));
+  }
+
+  @Public()
+  @Get('booster-products/:id/drop-rates')
+  dropRates(@Param('id') id: string) {
+    return this.boosters.publicDropRates(parseInput(idSchema, id));
+  }
+
   @Post('booster-products/:id/open')
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
   open(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() body: unknown) {
-    const { idempotencyKey } = parseInput(boosterOpenSchema, body);
+    const { idempotencyKey } = parseInput(openBoosterSchema, body);
     return this.boosters.openPack(user.id, parseInput(idSchema, id), idempotencyKey);
+  }
+
+  @Get('me/pack-openings')
+  history(@CurrentUser() user: AuthenticatedUser, @Query() query: unknown) {
+    return this.boosters.openings(user.id, parseInput(packOpeningsQuerySchema, query));
+  }
+
+  @Get('me/pack-openings/:id')
+  opening(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    return this.boosters.opening(user.id, parseInput(idSchema, id));
   }
 
   @Get('me/booster-openings')

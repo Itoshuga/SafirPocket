@@ -212,6 +212,8 @@ Les endpoints ajoutés pour la refonte sont notamment :
 - `/api/v1/admin/users` pour recherche, modération, rôles et historique ;
 - `/api/v1/admin/users/:userId` et ses sous-routes `profile`, `email`, `role`, `warnings`, `suspend`, `ban`, `password-reset-email`, `temporary-password`, `moderation-history` et `audit-logs` pour la page dédiée de gestion ;
 - `/api/v1/admin/cards`, `/rarities`, `/seasons` et `/card-types` pour le catalogue relationnel ;
+- `/api/v1/admin/boosters` et ses actions pour les designs, taux, validation et publication ;
+- `/api/v1/booster-products`, `POST /:id/open` et `/api/v1/me/pack-openings` pour les ouvertures ;
 - `GET /api/v1/admin/audit-logs` pour les administrateurs.
 
 Les erreurs API normalisées exposent au premier niveau `code`, `message`, `details`, `fieldErrors` et `requestId` lorsque disponibles. `ApiClientError` accepte aussi l’ancien format enveloppé pendant la transition et conserve ces informations afin que les formulaires puissent rattacher les erreurs aux champs.
@@ -223,12 +225,16 @@ La migration `20260718090000_user_security_warnings.sql` ajoute les avertissemen
 - RLS est actif sur toutes les tables, y compris le catalogue afin de masquer les brouillons.
 - Les clients ne peuvent pas écrire `user_cards`, `wallets`, `currency_transactions`, tirages ou résultats de match.
 - Les probabilités de boosters sont invisibles aux clients; le tirage utilise `crypto.randomInt` côté serveur.
+- Les boosters utilisent 10 000 points de base : six communes garanties puis deux tirages premium indépendants.
 - Les transactions monétaires sont immuables et toutes les ouvertures utilisent un UUID d’idempotence.
 - Les effets stockés sont des identifiants et paramètres JSON validés. Aucun JavaScript en base n’est exécuté.
 - Les uploads sont bornés par bucket, MIME, taille et propriétaire. L’API devra aussi inspecter le contenu réel avant les futurs endpoints d’upload.
 - Les logs expurgent Authorization, cookies, mots de passe et tokens, et chaque réponse HTTP porte un identifiant de requête.
 
 Voir [docs/security.md](docs/security.md), [docs/administration.md](docs/administration.md) et [AGENTS.md](AGENTS.md).
+
+Le modèle complet des boosters, l’idempotence, les variantes et les endpoints sont détaillés dans
+[docs/boosters.md](docs/boosters.md).
 
 ## Qualité et tests
 

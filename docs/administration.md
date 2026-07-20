@@ -94,7 +94,7 @@ contenu des pages.
 
 Le groupe apparaît avec `ADMIN_ACCESS`. Ses liens sont ensuite filtrés par permission:
 
-- `MODERATOR` voit Vue d'ensemble, Utilisateurs, Cartes, Raretés, Saisons et Types;
+- `MODERATOR` voit Vue d'ensemble, Utilisateurs, Cartes, Boosters, Raretés, Saisons et Types;
 - `ADMINISTRATOR` voit les mêmes sections ainsi que Journaux grâce à `AUDIT_LOGS_READ`;
 - `USER` et `PIONEER` ne voient jamais le groupe.
 
@@ -103,6 +103,17 @@ comme `/admin/users/:id` ou `/admin/cards/new` activent leur section parente. Le
 automatiquement sur toute route `/admin`, expose `aria-expanded`, `aria-controls` et
 `aria-current="page"`, et le drawer mobile se ferme après le choix d'une destination. Ces règles
 d'affichage ne remplacent jamais les guards NestJS ni les contrôles serveur.
+
+## Boosters
+
+`/admin/boosters`, `/admin/boosters/new` et `/admin/boosters/:id` gèrent plusieurs designs par
+saison. Le formulaire verrouille le contenu à six communes et deux cartes premium, convertit les
+pourcentages en points de base et refuse l’enregistrement tant que le total diffère de 100 %.
+
+Les modérateurs peuvent consulter, créer, modifier, configurer les taux, activer, désactiver,
+dupliquer et archiver. Les administrateurs peuvent en plus restaurer et supprimer définitivement
+un booster sans historique. Le service revalide la saison, la rareté commune, les pools de cartes,
+les dates et le total avant activation, puis audite chaque mutation. Voir `docs/boosters.md`.
 
 ## Catalogue relationnel
 

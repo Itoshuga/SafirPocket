@@ -10,6 +10,8 @@
 - Un acteur ne peut jamais se modérer lui-même. Un modérateur ne peut pas agir sur un modérateur ou administrateur, et le dernier administrateur actif ne peut pas perdre son accès.
 - Les clients authentifiés ne peuvent modifier que `username`, `display_name`, `avatar_url` et `bio` de leur propre profil. Rôle, statut, e-mail, suspension et historique restent serveur uniquement.
 - La configuration pondérée des boosters n’est pas exposée par RLS. Le tirage utilise une source aléatoire cryptographique et une transaction sérialisable.
+- Les taux premium sont des points de base entiers totalisant exactement 10 000. Les six positions communes, les deux positions premium, le débit éventuel, l’historique et les `upsert` de collection sont atomiques.
+- Le bucket `booster-designs` est public en lecture, borné en taille et MIME, mais ses écritures sont réservées aux rôles privilégiés. Aucune image binaire n’est stockée dans PostgreSQL.
 - Les événements de match sont produits par le moteur serveur et versionnés; le navigateur n’envoie que des intentions validées.
 - Les uploads sont limités par bucket, taille, extension et ownership. L’application doit également vérifier le contenu MIME réel avant tout upload privilégié.
 - Les modifications administratives sont transactionnelles et écrivent un audit avec acteur, entité, action, états avant/après et identifiant de requête. Les tables de modération, d’audit et de rapport de migration ne sont pas accessibles directement aux rôles client.

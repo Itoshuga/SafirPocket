@@ -128,6 +128,14 @@ export const adminNavigationGroup = {
       permission: 'CARDS_READ_ADMIN',
     },
     {
+      key: 'admin-boosters',
+      href: '/admin/boosters',
+      label: 'Boosters',
+      icon: PackageOpen,
+      match: 'segment',
+      permission: 'BOOSTERS_READ_ADMIN',
+    },
+    {
       key: 'admin-rarities',
       href: '/admin/rarities',
       label: 'Raretés',

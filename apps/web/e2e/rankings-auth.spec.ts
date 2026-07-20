@@ -39,11 +39,28 @@ test('public rankings render authoritative season data', async ({ page }) => {
 });
 
 test('private areas redirect anonymous users to login', async ({ page }) => {
-  for (const path of ['/collection', '/decks', '/boosters', '/play', '/profile', '/admin']) {
+  for (const path of ['/collection', '/decks', '/play', '/profile', '/admin']) {
     await page.goto(path);
     await expect(page).toHaveURL(/\/login\?next=/);
     await expect(page.getByRole('heading', { level: 1, name: 'Se connecter' })).toBeVisible();
   }
+});
+
+test('boosters catalogue remains public without loading private account data', async ({ page }) => {
+  const privateRequests: string[] = [];
+  await page.route('**/api/v1/booster-products', (route) => route.fulfill({ json: [] }));
+  page.on('request', (request) => {
+    if (/\/api\/v1\/me\/(wallets|pack-openings)/.test(request.url())) {
+      privateRequests.push(request.url());
+    }
+  });
+
+  await page.goto('/boosters');
+
+  await expect(page).toHaveURL(/\/boosters$/);
+  await expect(page.getByRole('heading', { level: 1, name: 'Boosters' })).toBeVisible();
+  await expect(page.getByRole('main').getByText('Catalogue public', { exact: true })).toBeVisible();
+  expect(privateRequests).toEqual([]);
 });
 
 test('login exposes accessible validation errors', async ({ page }) => {

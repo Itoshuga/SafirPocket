@@ -416,9 +416,136 @@ export const deckCardSchema = z.object({
   quantity: z.number().int().min(1).max(999),
 });
 
-export const boosterOpenSchema = z.object({
-  idempotencyKey: z.string().uuid(),
+const boosterDropRateEntrySchema = z
+  .object({
+    rarityId: idSchema,
+    dropRateBps: z.coerce.number().int().min(1).max(10_000),
+    sortOrder: z.coerce.number().int().min(-10_000).max(10_000).default(0),
+  })
+  .strict();
+
+function validateDropRates(
+  dropRates: Array<{ rarityId: string; dropRateBps: number }> | undefined,
+  commonRarityId: string | undefined,
+  context: z.RefinementCtx,
+): void {
+  if (!dropRates) return;
+  if (new Set(dropRates.map(({ rarityId }) => rarityId)).size !== dropRates.length) {
+    context.addIssue({
+      code: 'custom',
+      path: ['dropRates'],
+      message: 'Une rareté premium ne peut apparaître qu’une fois.',
+    });
+  }
+  if (commonRarityId && dropRates.some(({ rarityId }) => rarityId === commonRarityId)) {
+    context.addIssue({
+      code: 'custom',
+      path: ['dropRates'],
+      message: 'La rareté commune garantie ne peut pas être premium.',
+    });
+  }
+  if (dropRates.reduce((total, rate) => total + rate.dropRateBps, 0) !== 10_000) {
+    context.addIssue({
+      code: 'custom',
+      path: ['dropRates'],
+      message: 'Le total des taux doit être exactement égal à 100 %.',
+    });
+  }
+}
+
+const optionalDateTimeSchema = z
+  .string()
+  .trim()
+  .max(50)
+  .refine(
+    (value) => value === '' || !Number.isNaN(Date.parse(value)),
+    'Saisissez une date et une heure valides.',
+  )
+  .transform((value) => (value === '' ? null : value))
+  .nullable()
+  .optional();
+
+const boosterInputSchema = z
+  .object({
+    name: z.string().trim().min(1).max(150),
+    slug: z
+      .string()
+      .trim()
+      .min(1)
+      .max(160)
+      .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'Le slug doit utiliser des minuscules et des tirets.'),
+    description: nullableTrimmedString(5000),
+    imageUrl: httpsUrlSchema,
+    seasonId: idSchema,
+    guaranteedCommonRarityId: idSchema,
+    costAmount: z.coerce.number().int().min(0).max(Number.MAX_SAFE_INTEGER).default(0),
+    currencyCode: nullableTrimmedString(50),
+    availableFrom: optionalDateTimeSchema,
+    availableUntil: optionalDateTimeSchema,
+    sortOrder: z.coerce.number().int().min(-10_000).max(10_000).default(0),
+    isActive: z.boolean().default(false),
+    dropRates: z.array(boosterDropRateEntrySchema).min(1).max(100),
+  })
+  .strict();
+
+function validateBoosterInput(
+  input: {
+    guaranteedCommonRarityId?: string;
+    costAmount?: number;
+    currencyCode?: string | null;
+    availableFrom?: string | null;
+    availableUntil?: string | null;
+    dropRates?: Array<{ rarityId: string; dropRateBps: number }>;
+  },
+  context: z.RefinementCtx,
+): void {
+  validateDropRates(input.dropRates, input.guaranteedCommonRarityId, context);
+  if (input.costAmount && !input.currencyCode) {
+    context.addIssue({
+      code: 'custom',
+      path: ['currencyCode'],
+      message: 'Une monnaie est requise pour un booster payant.',
+    });
+  }
+  if (
+    input.availableFrom &&
+    input.availableUntil &&
+    new Date(input.availableUntil) <= new Date(input.availableFrom)
+  ) {
+    context.addIssue({
+      code: 'custom',
+      path: ['availableUntil'],
+      message: 'La date de fin doit être postérieure à la date de début.',
+    });
+  }
+}
+
+export const createBoosterSchema = boosterInputSchema.superRefine(validateBoosterInput);
+export const updateBoosterSchema = boosterInputSchema.partial().superRefine(validateBoosterInput);
+export const updateBoosterDropRatesSchema = z
+  .object({ dropRates: z.array(boosterDropRateEntrySchema).min(1).max(100) })
+  .strict()
+  .superRefine(({ dropRates }, context) => validateDropRates(dropRates, undefined, context));
+
+export const adminBoostersQuerySchema = paginationSchema.extend({
+  pageSize: z.coerce.number().int().min(1).max(100).default(25),
+  search: z.string().trim().max(100).optional(),
+  seasonId: idSchema.optional(),
+  archived: z.enum(['active', 'archived', 'all']).default('active'),
+  active: z.enum(['true', 'false']).optional(),
+  sort: z.enum(['name', '-name', 'updatedAt', '-updatedAt', 'sortOrder']).default('sortOrder'),
 });
+
+export const packOpeningsQuerySchema = paginationSchema.extend({
+  pageSize: z.coerce.number().int().min(1).max(50).default(12),
+});
+
+export const openBoosterSchema = z
+  .object({
+    idempotencyKey: z.string().uuid(),
+  })
+  .strict();
+export const boosterOpenSchema = openBoosterSchema;
 
 export const queueJoinSchema = z.object({
   format: z.string().trim().min(1).max(50),
@@ -472,6 +599,13 @@ export type AdminAuditQuery = z.infer<typeof adminAuditQuerySchema>;
 export type DeckCreateInput = z.infer<typeof deckCreateSchema>;
 export type DeckUpdateInput = z.infer<typeof deckUpdateSchema>;
 export type DeckCardInput = z.infer<typeof deckCardSchema>;
+export type CreateBoosterInput = z.infer<typeof createBoosterSchema>;
+export type CreateBoosterFormInput = z.input<typeof createBoosterSchema>;
+export type UpdateBoosterInput = z.infer<typeof updateBoosterSchema>;
+export type UpdateBoosterDropRatesInput = z.infer<typeof updateBoosterDropRatesSchema>;
+export type AdminBoostersQuery = z.infer<typeof adminBoostersQuerySchema>;
+export type PackOpeningsQuery = z.infer<typeof packOpeningsQuerySchema>;
+export type OpenBoosterInput = z.infer<typeof openBoosterSchema>;
 export type ProfileUpdateInput = z.infer<typeof profileUpdateSchema>;
 export type UserPreferencesUpdateInput = z.infer<typeof userPreferencesUpdateSchema>;
 export type UserSearchQuery = z.infer<typeof userSearchQuerySchema>;

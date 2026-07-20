@@ -84,6 +84,13 @@ enum PackOpeningStatus {
   @@map("pack_opening_status")
 }
 
+enum PackSlotCategory {
+  COMMON
+  PREMIUM
+
+  @@map("pack_slot_category")
+}
+
 enum MissionStatus {
   active
   completed
@@ -103,52 +110,52 @@ enum MatchStatus {
 }
 
 model UserProfile {
-  id                 String        @id @db.Uuid
-  username           String        @db.VarChar(24)
-  normalizedUsername String        @unique(map: "user_profiles_normalized_username_key") @map("normalized_username") @db.VarChar(24)
-  email              String
-  displayName        String?       @map("display_name") @db.VarChar(50)
-  avatarUrl          String?       @map("avatar_url")
-  bio                String?
-  role               AppRole       @default(USER)
-  status             AccountStatus @default(ACTIVE)
-  suspendedUntil     DateTime?     @map("suspended_until") @db.Timestamptz(6)
-  mustChangePassword Boolean       @default(false) @map("must_change_password")
-  createdAt          DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt          DateTime      @default(now()) @map("updated_at") @db.Timestamptz(6)
-  lastLoginAt        DateTime?     @map("last_login_at") @db.Timestamptz(6)
-  usernameChangedAt  DateTime?     @map("username_changed_at") @db.Timestamptz(6)
-  isDeactivated      Boolean       @default(false) @map("is_deactivated")
-  deactivatedAt      DateTime?     @map("deactivated_at") @db.Timestamptz(6)
-  deletionRequestedAt DateTime?    @map("deletion_requested_at") @db.Timestamptz(6)
-  deletionScheduledFor DateTime?   @map("deletion_scheduled_for") @db.Timestamptz(6)
-  deletionCancelledAt DateTime?    @map("deletion_cancelled_at") @db.Timestamptz(6)
-  deletionProcessedAt DateTime?    @map("deletion_processed_at") @db.Timestamptz(6)
-  deletionReason     String?       @map("deletion_reason")
+  id                   String        @id @db.Uuid
+  username             String        @db.VarChar(24)
+  normalizedUsername   String        @unique(map: "user_profiles_normalized_username_key") @map("normalized_username") @db.VarChar(24)
+  email                String
+  displayName          String?       @map("display_name") @db.VarChar(50)
+  avatarUrl            String?       @map("avatar_url")
+  bio                  String?
+  role                 AppRole       @default(USER)
+  status               AccountStatus @default(ACTIVE)
+  suspendedUntil       DateTime?     @map("suspended_until") @db.Timestamptz(6)
+  mustChangePassword   Boolean       @default(false) @map("must_change_password")
+  createdAt            DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime      @default(now()) @map("updated_at") @db.Timestamptz(6)
+  lastLoginAt          DateTime?     @map("last_login_at") @db.Timestamptz(6)
+  usernameChangedAt    DateTime?     @map("username_changed_at") @db.Timestamptz(6)
+  isDeactivated        Boolean       @default(false) @map("is_deactivated")
+  deactivatedAt        DateTime?     @map("deactivated_at") @db.Timestamptz(6)
+  deletionRequestedAt  DateTime?     @map("deletion_requested_at") @db.Timestamptz(6)
+  deletionScheduledFor DateTime?     @map("deletion_scheduled_for") @db.Timestamptz(6)
+  deletionCancelledAt  DateTime?     @map("deletion_cancelled_at") @db.Timestamptz(6)
+  deletionProcessedAt  DateTime?     @map("deletion_processed_at") @db.Timestamptz(6)
+  deletionReason       String?       @map("deletion_reason")
 
-  decks                Deck[]
-  userCards            UserCard[]
-  packOpenings         PackOpening[]
-  wallets              Wallet[]
-  currencyTransactions CurrencyTransaction[]
-  userMissions         UserMission[]
-  matchPlayers         MatchPlayer[]
-  matchEvents          MatchEvent[]
-  rankedRatings        RankedRating[]
-  moderationReceived   UserModerationAction[] @relation("ModerationTarget")
-  moderationPerformed  UserModerationAction[] @relation("ModerationActor")
-  warningsReceived     UserWarning[]          @relation("WarningTarget")
-  warningsIssued       UserWarning[]          @relation("WarningIssuer")
-  warningsRevoked      UserWarning[]          @relation("WarningRevoker")
-  auditLogs            AdminAuditLog[]
-  preferences          UserPreference?
-  friendRequestsSent   FriendRequest[]     @relation("FriendRequestSender")
-  friendRequestsReceived FriendRequest[]   @relation("FriendRequestReceiver")
-  friendshipsAsOne     Friendship[]        @relation("FriendshipUserOne")
-  friendshipsAsTwo     Friendship[]        @relation("FriendshipUserTwo")
-  blocksCreated        UserBlock[]          @relation("Blocker")
-  blocksReceived       UserBlock[]          @relation("Blocked")
-  securityEvents       UserSecurityEvent[]
+  decks                  Deck[]
+  userCards              UserCard[]
+  packOpenings           PackOpening[]
+  wallets                Wallet[]
+  currencyTransactions   CurrencyTransaction[]
+  userMissions           UserMission[]
+  matchPlayers           MatchPlayer[]
+  matchEvents            MatchEvent[]
+  rankedRatings          RankedRating[]
+  moderationReceived     UserModerationAction[] @relation("ModerationTarget")
+  moderationPerformed    UserModerationAction[] @relation("ModerationActor")
+  warningsReceived       UserWarning[]          @relation("WarningTarget")
+  warningsIssued         UserWarning[]          @relation("WarningIssuer")
+  warningsRevoked        UserWarning[]          @relation("WarningRevoker")
+  auditLogs              AdminAuditLog[]
+  preferences            UserPreference?
+  friendRequestsSent     FriendRequest[]        @relation("FriendRequestSender")
+  friendRequestsReceived FriendRequest[]        @relation("FriendRequestReceiver")
+  friendshipsAsOne       Friendship[]           @relation("FriendshipUserOne")
+  friendshipsAsTwo       Friendship[]           @relation("FriendshipUserTwo")
+  blocksCreated          UserBlock[]            @relation("Blocker")
+  blocksReceived         UserBlock[]            @relation("Blocked")
+  securityEvents         UserSecurityEvent[]
 
   @@index([role], map: "user_profiles_role_idx")
   @@index([status], map: "user_profiles_status_idx")
@@ -235,21 +242,21 @@ model UserSecurityEvent {
 }
 
 model UserWarning {
-  id               String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId           String          @map("user_id") @db.Uuid
-  issuedByUserId   String?         @map("issued_by_user_id") @db.Uuid
-  reason           String
-  internalNote     String?         @map("internal_note")
-  severity         WarningSeverity
-  isActive         Boolean         @default(true) @map("is_active")
-  acknowledgedAt   DateTime?       @map("acknowledged_at") @db.Timestamptz(6)
-  revokedAt        DateTime?       @map("revoked_at") @db.Timestamptz(6)
-  revokedByUserId  String?         @map("revoked_by_user_id") @db.Uuid
-  createdAt        DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt        DateTime        @default(now()) @map("updated_at") @db.Timestamptz(6)
-  user             UserProfile     @relation("WarningTarget", fields: [userId], references: [id], onDelete: Restrict)
-  issuedBy         UserProfile?    @relation("WarningIssuer", fields: [issuedByUserId], references: [id], onDelete: SetNull)
-  revokedBy        UserProfile?    @relation("WarningRevoker", fields: [revokedByUserId], references: [id], onDelete: SetNull)
+  id              String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId          String          @map("user_id") @db.Uuid
+  issuedByUserId  String?         @map("issued_by_user_id") @db.Uuid
+  reason          String
+  internalNote    String?         @map("internal_note")
+  severity        WarningSeverity
+  isActive        Boolean         @default(true) @map("is_active")
+  acknowledgedAt  DateTime?       @map("acknowledged_at") @db.Timestamptz(6)
+  revokedAt       DateTime?       @map("revoked_at") @db.Timestamptz(6)
+  revokedByUserId String?         @map("revoked_by_user_id") @db.Uuid
+  createdAt       DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime        @default(now()) @map("updated_at") @db.Timestamptz(6)
+  user            UserProfile     @relation("WarningTarget", fields: [userId], references: [id], onDelete: Restrict)
+  issuedBy        UserProfile?    @relation("WarningIssuer", fields: [issuedByUserId], references: [id], onDelete: SetNull)
+  revokedBy       UserProfile?    @relation("WarningRevoker", fields: [revokedByUserId], references: [id], onDelete: SetNull)
 
   @@index([userId], map: "user_warnings_user_id_idx")
   @@index([issuedByUserId], map: "user_warnings_issued_by_user_id_idx")
@@ -363,6 +370,7 @@ model Card {
   season           CardSeason        @relation(fields: [seasonId], references: [id], onDelete: Restrict)
   typeLinks        CardTypeLink[]
   variants         CardVariant[]
+  packOpeningCards PackOpeningCard[]
 
   @@unique([setId, slug])
   @@unique([setId, collectionNumber])
@@ -373,36 +381,41 @@ model Card {
 }
 
 model CardRarity {
-  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name         String    @db.VarChar(80)
-  slug         String    @unique @db.VarChar(100)
-  description  String?
-  displayColor String?   @map("display_color") @db.VarChar(7)
-  sortOrder    Int       @default(0) @map("sort_order")
-  isActive     Boolean   @default(true) @map("is_active")
-  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt    DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
-  deletedAt    DateTime? @map("deleted_at") @db.Timestamptz(6)
-  cards        Card[]
+  id                 String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name               String                  @db.VarChar(80)
+  slug               String                  @unique @db.VarChar(100)
+  description        String?
+  displayColor       String?                 @map("display_color") @db.VarChar(7)
+  sortOrder          Int                     @default(0) @map("sort_order")
+  isActive           Boolean                 @default(true) @map("is_active")
+  createdAt          DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime                @default(now()) @map("updated_at") @db.Timestamptz(6)
+  deletedAt          DateTime?               @map("deleted_at") @db.Timestamptz(6)
+  cards              Card[]
+  guaranteedBoosters BoosterProduct[]        @relation("GuaranteedCommonRarity")
+  boosterDropRates   BoosterRarityDropRate[]
+  packOpeningCards   PackOpeningCard[]
 
   @@index([isActive, sortOrder, name], map: "card_rarities_active_sort_idx")
   @@map("card_rarities")
 }
 
 model CardSeason {
-  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name        String    @db.VarChar(100)
-  slug        String    @unique @db.VarChar(120)
-  code        String?   @db.VarChar(24)
-  description String?
-  startDate   DateTime? @map("start_date") @db.Date
-  endDate     DateTime? @map("end_date") @db.Date
-  isActive    Boolean   @default(true) @map("is_active")
-  sortOrder   Int       @default(0) @map("sort_order")
-  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt   DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
-  deletedAt   DateTime? @map("deleted_at") @db.Timestamptz(6)
-  cards       Card[]
+  id           String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name         String           @db.VarChar(100)
+  slug         String           @unique @db.VarChar(120)
+  code         String?          @db.VarChar(24)
+  description  String?
+  startDate    DateTime?        @map("start_date") @db.Date
+  endDate      DateTime?        @map("end_date") @db.Date
+  isActive     Boolean          @default(true) @map("is_active")
+  sortOrder    Int              @default(0) @map("sort_order")
+  createdAt    DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime         @default(now()) @map("updated_at") @db.Timestamptz(6)
+  deletedAt    DateTime?        @map("deleted_at") @db.Timestamptz(6)
+  cards        Card[]
+  boosters     BoosterProduct[]
+  packOpenings PackOpening[]
 
   @@index([isActive, sortOrder, name], map: "card_seasons_active_sort_idx")
   @@map("card_seasons")
@@ -506,24 +519,54 @@ model DeckCard {
 }
 
 model BoosterProduct {
-  id             String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name           String
-  slug           String               @unique
-  description    String?
-  artworkPath    String?              @map("artwork_path")
-  priceCurrency  String               @map("price_currency")
-  priceAmount    BigInt               @map("price_amount")
-  cardsPerPack   Int                  @map("cards_per_pack")
-  status         PublicationStatus    @default(draft)
-  availableFrom  DateTime?            @map("available_from") @db.Timestamptz(6)
-  availableUntil DateTime?            @map("available_until") @db.Timestamptz(6)
-  metadata       Json                 @default("{}")
-  createdAt      DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt      DateTime             @default(now()) @map("updated_at") @db.Timestamptz(6)
-  slots          BoosterProductSlot[]
-  openings       PackOpening[]
+  id                       String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  seasonId                 String                  @map("season_id") @db.Uuid
+  name                     String                  @db.VarChar(150)
+  slug                     String                  @unique @db.VarChar(160)
+  description              String?
+  artworkPath              String?                 @map("artwork_path")
+  imageUrl                 String?                 @map("image_url")
+  guaranteedCommonRarityId String                  @map("guaranteed_common_rarity_id") @db.Uuid
+  priceCurrency            String?                 @map("price_currency")
+  priceAmount              BigInt                  @default(0) @map("price_amount")
+  cardsPerPack             Int                     @default(8) @map("cards_per_pack")
+  commonCardCount          Int                     @default(6) @map("common_card_count") @db.SmallInt
+  premiumCardCount         Int                     @default(2) @map("premium_card_count") @db.SmallInt
+  status                   PublicationStatus       @default(draft)
+  isActive                 Boolean                 @default(false) @map("is_active")
+  availableFrom            DateTime?               @map("available_from") @db.Timestamptz(6)
+  availableUntil           DateTime?               @map("available_until") @db.Timestamptz(6)
+  sortOrder                Int                     @default(0) @map("sort_order")
+  metadata                 Json                    @default("{}")
+  createdAt                DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                DateTime                @default(now()) @map("updated_at") @db.Timestamptz(6)
+  deletedAt                DateTime?               @map("deleted_at") @db.Timestamptz(6)
+  season                   CardSeason              @relation(fields: [seasonId], references: [id], onDelete: Restrict)
+  guaranteedCommonRarity   CardRarity              @relation("GuaranteedCommonRarity", fields: [guaranteedCommonRarityId], references: [id], onDelete: Restrict)
+  dropRates                BoosterRarityDropRate[]
+  slots                    BoosterProductSlot[]
+  openings                 PackOpening[]
 
+  @@unique([seasonId, name], map: "booster_products_season_name_key")
+  @@index([seasonId, sortOrder, name], map: "booster_products_season_idx")
+  @@index([isActive, deletedAt, sortOrder], map: "booster_products_active_idx")
+  @@index([availableFrom, availableUntil], map: "booster_products_availability_idx")
   @@map("booster_products")
+}
+
+model BoosterRarityDropRate {
+  boosterId   String         @map("booster_id") @db.Uuid
+  rarityId    String         @map("rarity_id") @db.Uuid
+  dropRateBps Int            @map("drop_rate_bps")
+  sortOrder   Int            @default(0) @map("sort_order")
+  createdAt   DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime       @default(now()) @map("updated_at") @db.Timestamptz(6)
+  booster     BoosterProduct @relation(fields: [boosterId], references: [id], onDelete: Cascade)
+  rarity      CardRarity     @relation(fields: [rarityId], references: [id], onDelete: Restrict)
+
+  @@id([boosterId, rarityId])
+  @@index([boosterId, sortOrder, rarityId], map: "booster_drop_rates_booster_sort_idx")
+  @@map("booster_rarity_drop_rates")
 }
 
 model BoosterProductSlot {
@@ -540,36 +583,49 @@ model BoosterProductSlot {
 }
 
 model PackOpening {
-  id               String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId           String            @map("user_id") @db.Uuid
-  boosterProductId String            @map("booster_product_id") @db.Uuid
-  idempotencyKey   String            @map("idempotency_key") @db.Uuid
-  status           PackOpeningStatus @default(pending)
-  priceCurrency    String            @map("price_currency")
-  priceAmount      BigInt            @map("price_amount")
-  errorCode        String?           @map("error_code")
-  openedAt         DateTime?         @map("opened_at") @db.Timestamptz(6)
-  createdAt        DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
-  user             UserProfile       @relation(fields: [userId], references: [id], onDelete: Restrict)
-  boosterProduct   BoosterProduct    @relation(fields: [boosterProductId], references: [id], onDelete: Restrict)
-  cards            PackOpeningCard[]
+  id                  String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId              String            @map("user_id") @db.Uuid
+  boosterProductId    String            @map("booster_product_id") @db.Uuid
+  seasonId            String            @map("season_id") @db.Uuid
+  idempotencyKey      String            @map("idempotency_key") @db.Uuid
+  status              PackOpeningStatus @default(pending)
+  priceCurrency       String?           @map("price_currency")
+  priceAmount         BigInt            @map("price_amount")
+  boosterNameSnapshot String            @map("booster_name_snapshot")
+  errorCode           String?           @map("error_code")
+  openedAt            DateTime?         @map("opened_at") @db.Timestamptz(6)
+  createdAt           DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  user                UserProfile       @relation(fields: [userId], references: [id], onDelete: Restrict)
+  boosterProduct      BoosterProduct    @relation(fields: [boosterProductId], references: [id], onDelete: Restrict)
+  season              CardSeason        @relation(fields: [seasonId], references: [id], onDelete: Restrict)
+  cards               PackOpeningCard[]
 
   @@unique([userId, idempotencyKey])
   @@map("pack_openings")
 }
 
 model PackOpeningCard {
-  id              String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  packOpeningId   String      @map("pack_opening_id") @db.Uuid
-  cardVariantId   String      @map("card_variant_id") @db.Uuid
-  slotIndex       Int         @map("slot_index")
-  quantity        Int         @default(1)
-  probabilityData Json        @default("{}") @map("probability_data")
-  createdAt       DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
-  packOpening     PackOpening @relation(fields: [packOpeningId], references: [id], onDelete: Cascade)
-  cardVariant     CardVariant @relation(fields: [cardVariantId], references: [id], onDelete: Restrict)
+  id                 String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  packOpeningId      String           @map("pack_opening_id") @db.Uuid
+  cardId             String           @map("card_id") @db.Uuid
+  cardVariantId      String           @map("card_variant_id") @db.Uuid
+  rarityId           String           @map("rarity_id") @db.Uuid
+  slotIndex          Int              @map("slot_index")
+  slotPosition       Int              @map("slot_position") @db.SmallInt
+  slotCategory       PackSlotCategory @map("slot_category")
+  quantity           Int              @default(1)
+  probabilityData    Json             @default("{}") @map("probability_data")
+  cardNameSnapshot   String           @map("card_name_snapshot")
+  rarityNameSnapshot String           @map("rarity_name_snapshot")
+  previousQuantity   Int              @map("previous_quantity")
+  newQuantity        Int              @map("new_quantity")
+  createdAt          DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  packOpening        PackOpening      @relation(fields: [packOpeningId], references: [id], onDelete: Cascade)
+  card               Card             @relation(fields: [cardId], references: [id], onDelete: Restrict)
+  cardVariant        CardVariant      @relation(fields: [cardVariantId], references: [id], onDelete: Restrict)
+  rarity             CardRarity       @relation(fields: [rarityId], references: [id], onDelete: Restrict)
 
-  @@unique([packOpeningId, slotIndex, cardVariantId])
+  @@unique([packOpeningId, slotPosition], map: "pack_opening_cards_opening_position_key")
   @@map("pack_opening_cards")
 }
 

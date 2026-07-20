@@ -1,6 +1,9 @@
 import { Module } from '@nestjs/common';
 import { AdminCardsController } from './admin-cards.controller.js';
 import { AdminCardsService } from './admin-cards.service.js';
+import { AdminBoostersController } from './admin-boosters.controller.js';
+import { AdminBoostersService } from './admin-boosters.service.js';
+import { BoosterDrawService, BoosterRandomService } from '../boosters/booster-draw.service.js';
 import { AdminCardTypesController } from './admin-card-types.controller.js';
 import { AdminController } from './admin.controller.js';
 import { AdminRaritiesController } from './admin-rarities.controller.js';
@@ -15,6 +18,7 @@ import { SupabaseAdminAuthService } from './supabase-admin-auth.service.js';
     AdminController,
     AdminUsersController,
     AdminCardsController,
+    AdminBoostersController,
     AdminRaritiesController,
     AdminSeasonsController,
     AdminCardTypesController,
@@ -22,6 +26,9 @@ import { SupabaseAdminAuthService } from './supabase-admin-auth.service.js';
   providers: [
     AdminUsersService,
     AdminCardsService,
+    AdminBoostersService,
+    BoosterDrawService,
+    BoosterRandomService,
     AdminTaxonomiesService,
     SupabaseAdminAuthService,
   ],

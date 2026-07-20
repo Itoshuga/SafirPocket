@@ -1,4 +1,4 @@
-﻿export type Json =
+export type Json =
   | string
   | number
   | boolean
@@ -11,6 +11,31 @@ export type Database = {
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
     PostgrestVersion: "14.5"
+  }
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
   }
   public: {
     Tables: {
@@ -99,14 +124,22 @@ export type Database = {
           available_from: string | null
           available_until: string | null
           cards_per_pack: number
+          common_card_count: number
           created_at: string
+          deleted_at: string | null
           description: string | null
+          guaranteed_common_rarity_id: string
           id: string
+          image_url: string | null
+          is_active: boolean
           metadata: Json
           name: string
+          premium_card_count: number
           price_amount: number
-          price_currency: string
+          price_currency: string | null
+          season_id: string
           slug: string
+          sort_order: number
           status: Database["public"]["Enums"]["publication_status"]
           updated_at: string
         }
@@ -114,15 +147,23 @@ export type Database = {
           artwork_path?: string | null
           available_from?: string | null
           available_until?: string | null
-          cards_per_pack: number
+          cards_per_pack?: number
+          common_card_count?: number
           created_at?: string
+          deleted_at?: string | null
           description?: string | null
+          guaranteed_common_rarity_id: string
           id?: string
+          image_url?: string | null
+          is_active?: boolean
           metadata?: Json
           name: string
-          price_amount: number
-          price_currency: string
+          premium_card_count?: number
+          price_amount?: number
+          price_currency?: string | null
+          season_id: string
           slug: string
+          sort_order?: number
           status?: Database["public"]["Enums"]["publication_status"]
           updated_at?: string
         }
@@ -131,18 +172,83 @@ export type Database = {
           available_from?: string | null
           available_until?: string | null
           cards_per_pack?: number
+          common_card_count?: number
           created_at?: string
+          deleted_at?: string | null
           description?: string | null
+          guaranteed_common_rarity_id?: string
           id?: string
+          image_url?: string | null
+          is_active?: boolean
           metadata?: Json
           name?: string
+          premium_card_count?: number
           price_amount?: number
-          price_currency?: string
+          price_currency?: string | null
+          season_id?: string
           slug?: string
+          sort_order?: number
           status?: Database["public"]["Enums"]["publication_status"]
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "booster_products_guaranteed_common_rarity_id_fkey"
+            columns: ["guaranteed_common_rarity_id"]
+            isOneToOne: false
+            referencedRelation: "card_rarities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "booster_products_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "card_seasons"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      booster_rarity_drop_rates: {
+        Row: {
+          booster_id: string
+          created_at: string
+          drop_rate_bps: number
+          rarity_id: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          booster_id: string
+          created_at?: string
+          drop_rate_bps: number
+          rarity_id: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          booster_id?: string
+          created_at?: string
+          drop_rate_bps?: number
+          rarity_id?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "booster_rarity_drop_rates_booster_id_fkey"
+            columns: ["booster_id"]
+            isOneToOne: false
+            referencedRelation: "booster_products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "booster_rarity_drop_rates_rarity_id_fkey"
+            columns: ["rarity_id"]
+            isOneToOne: false
+            referencedRelation: "card_rarities"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       card_rarities: {
         Row: {
@@ -952,33 +1058,64 @@ export type Database = {
       }
       pack_opening_cards: {
         Row: {
+          card_id: string
+          card_name_snapshot: string
           card_variant_id: string
           created_at: string
           id: string
+          new_quantity: number
           pack_opening_id: string
+          previous_quantity: number
           probability_data: Json
           quantity: number
+          rarity_id: string
+          rarity_name_snapshot: string
+          slot_category: Database["public"]["Enums"]["pack_slot_category"]
           slot_index: number
+          slot_position: number
         }
         Insert: {
+          card_id: string
+          card_name_snapshot: string
           card_variant_id: string
           created_at?: string
           id?: string
+          new_quantity: number
           pack_opening_id: string
+          previous_quantity: number
           probability_data?: Json
           quantity?: number
+          rarity_id: string
+          rarity_name_snapshot: string
+          slot_category: Database["public"]["Enums"]["pack_slot_category"]
           slot_index: number
+          slot_position: number
         }
         Update: {
+          card_id?: string
+          card_name_snapshot?: string
           card_variant_id?: string
           created_at?: string
           id?: string
+          new_quantity?: number
           pack_opening_id?: string
+          previous_quantity?: number
           probability_data?: Json
           quantity?: number
+          rarity_id?: string
+          rarity_name_snapshot?: string
+          slot_category?: Database["public"]["Enums"]["pack_slot_category"]
           slot_index?: number
+          slot_position?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "pack_opening_cards_card_id_fkey"
+            columns: ["card_id"]
+            isOneToOne: false
+            referencedRelation: "cards"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "pack_opening_cards_card_variant_id_fkey"
             columns: ["card_variant_id"]
@@ -993,10 +1130,18 @@ export type Database = {
             referencedRelation: "pack_openings"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "pack_opening_cards_rarity_id_fkey"
+            columns: ["rarity_id"]
+            isOneToOne: false
+            referencedRelation: "card_rarities"
+            referencedColumns: ["id"]
+          },
         ]
       }
       pack_openings: {
         Row: {
+          booster_name_snapshot: string
           booster_product_id: string
           created_at: string
           error_code: string | null
@@ -1004,11 +1149,13 @@ export type Database = {
           idempotency_key: string
           opened_at: string | null
           price_amount: number
-          price_currency: string
+          price_currency: string | null
+          season_id: string
           status: Database["public"]["Enums"]["pack_opening_status"]
           user_id: string
         }
         Insert: {
+          booster_name_snapshot: string
           booster_product_id: string
           created_at?: string
           error_code?: string | null
@@ -1016,11 +1163,13 @@ export type Database = {
           idempotency_key: string
           opened_at?: string | null
           price_amount: number
-          price_currency: string
+          price_currency?: string | null
+          season_id: string
           status?: Database["public"]["Enums"]["pack_opening_status"]
           user_id: string
         }
         Update: {
+          booster_name_snapshot?: string
           booster_product_id?: string
           created_at?: string
           error_code?: string | null
@@ -1028,7 +1177,8 @@ export type Database = {
           idempotency_key?: string
           opened_at?: string | null
           price_amount?: number
-          price_currency?: string
+          price_currency?: string | null
+          season_id?: string
           status?: Database["public"]["Enums"]["pack_opening_status"]
           user_id?: string
         }
@@ -1038,6 +1188,13 @@ export type Database = {
             columns: ["booster_product_id"]
             isOneToOne: false
             referencedRelation: "booster_products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pack_openings_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "card_seasons"
             referencedColumns: ["id"]
           },
           {
@@ -1613,6 +1770,7 @@ export type Database = {
         | "PIONEER_GRANTED"
         | "PIONEER_REVOKED"
       pack_opening_status: "pending" | "completed" | "failed"
+      pack_slot_category: "COMMON" | "PREMIUM"
       profile_visibility: "PUBLIC" | "PRIVATE"
       publication_status: "draft" | "published" | "archived"
       user_role: "user" | "moderator" | "admin"
@@ -1742,6 +1900,9 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {
       account_status: ["ACTIVE", "SUSPENDED", "BANNED"],
@@ -1760,6 +1921,7 @@ export const Constants = {
         "PIONEER_REVOKED",
       ],
       pack_opening_status: ["pending", "completed", "failed"],
+      pack_slot_category: ["COMMON", "PREMIUM"],
       profile_visibility: ["PUBLIC", "PRIVATE"],
       publication_status: ["draft", "published", "archived"],
       user_role: ["user", "moderator", "admin"],

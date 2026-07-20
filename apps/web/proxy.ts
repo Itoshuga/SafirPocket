@@ -3,15 +3,7 @@ import { type NextRequest, NextResponse } from 'next/server';
 import { isSupabaseConfigured, publicEnv } from './lib/env';
 import { safeInternalPath } from './lib/navigation';
 
-const privatePrefixes = [
-  '/collection',
-  '/decks',
-  '/boosters',
-  '/play',
-  '/profile',
-  '/settings',
-  '/admin',
-];
+const privatePrefixes = ['/collection', '/decks', '/play', '/profile', '/settings', '/admin'];
 
 function loginRedirect(request: NextRequest, reason?: string) {
   const loginUrl = new URL('/login', request.url);

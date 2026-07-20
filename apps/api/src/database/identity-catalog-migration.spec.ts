@@ -55,7 +55,7 @@ describe('identity and catalog migration contract', () => {
     const userProfileModel = prismaSchema.match(/model UserProfile \{[\s\S]*?\n\}/)?.[0];
     expect(userProfileModel).toBeDefined();
     expect(userProfileModel).not.toMatch(/password(Hash|Value|Secret)|temporaryPassword/i);
-    expect(userProfileModel).toContain('mustChangePassword Boolean');
+    expect(userProfileModel).toMatch(/mustChangePassword\s+Boolean/);
     expect(userProfileModel).toContain('@@map("user_profiles")');
   });
 

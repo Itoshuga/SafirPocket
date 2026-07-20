@@ -14,6 +14,7 @@ import {
   userSearchQuerySchema,
   accountDeletionRequestSchema,
   accountPasswordUpdateSchema,
+  createBoosterSchema,
 } from './index.js';
 
 describe('shared validation', () => {
@@ -140,6 +141,41 @@ describe('shared validation', () => {
         confirmationUsername: 'lucas',
         confirmed: false,
         reason: null,
+      }).success,
+    ).toBe(false);
+  });
+
+  it('accepts only complete integer booster rates totaling 10,000 basis points', () => {
+    const commonId = crypto.randomUUID();
+    const base = {
+      name: 'Booster Origines',
+      slug: 'booster-origines',
+      seasonId: crypto.randomUUID(),
+      guaranteedCommonRarityId: commonId,
+      costAmount: 0,
+      currencyCode: null,
+      sortOrder: 0,
+      isActive: false,
+    };
+    expect(
+      createBoosterSchema.safeParse({
+        ...base,
+        dropRates: [
+          { rarityId: crypto.randomUUID(), dropRateBps: 7000, sortOrder: 0 },
+          { rarityId: crypto.randomUUID(), dropRateBps: 3000, sortOrder: 1 },
+        ],
+      }).success,
+    ).toBe(true);
+    expect(
+      createBoosterSchema.safeParse({
+        ...base,
+        dropRates: [{ rarityId: crypto.randomUUID(), dropRateBps: 9999, sortOrder: 0 }],
+      }).success,
+    ).toBe(false);
+    expect(
+      createBoosterSchema.safeParse({
+        ...base,
+        dropRates: [{ rarityId: commonId, dropRateBps: 10_000, sortOrder: 0 }],
       }).success,
     ).toBe(false);
   });

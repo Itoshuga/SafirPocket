@@ -239,6 +239,9 @@ async function login(page: Page) {
   await form.locator('input[name="password"]:visible').fill(password);
   await form.locator('button[type="submit"]:visible').click();
   await page.waitForURL(/\/collection$/);
+  await expect(
+    page.getByRole('button', { name: 'Ouvrir le menu du compte' }).filter({ visible: true }),
+  ).toBeVisible();
 }
 
 test('profile, avatar menu, preferences and social workflows are connected', async ({ page }) => {

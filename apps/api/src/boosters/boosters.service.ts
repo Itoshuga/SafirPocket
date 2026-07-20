@@ -1,340 +1,469 @@
-import { randomInt } from 'node:crypto';
 import {
   BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { z } from 'zod';
-import { cardRelations, toCard, type CardWithRelations } from '../cards/card.mapper.js';
+import type { BoosterProduct, OpenBoosterResult, PackOpening } from '@safir/shared-types';
+import type { PackOpeningsQuery } from '@safir/validation';
+import type { Prisma } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { BoosterDrawService } from './booster-draw.service.js';
 
-const weightConfigSchema = z.object({
-  entries: z
-    .array(
-      z.object({
-        cardVariantId: z.uuid(),
-        weight: z.number().int().min(1).max(1_000_000),
-      }),
-    )
-    .min(1),
-});
+const publicBoosterInclude = {
+  season: true,
+  guaranteedCommonRarity: true,
+} satisfies Prisma.BoosterProductInclude;
+
+const configuredBoosterInclude = {
+  ...publicBoosterInclude,
+  dropRates: {
+    include: { rarity: true },
+    orderBy: [{ sortOrder: 'asc' }, { rarity: { name: 'asc' } }],
+  },
+} satisfies Prisma.BoosterProductInclude;
+
+const openingInclude = {
+  season: true,
+  boosterProduct: true,
+  cards: {
+    include: { card: true, rarity: true, cardVariant: true },
+    orderBy: { slotPosition: 'asc' },
+  },
+} satisfies Prisma.PackOpeningInclude;
+
+type PublicBoosterRow = Prisma.BoosterProductGetPayload<{ include: typeof publicBoosterInclude }>;
+type ConfiguredBoosterRow = Prisma.BoosterProductGetPayload<{
+  include: typeof configuredBoosterInclude;
+}>;
+type OpeningRow = Prisma.PackOpeningGetPayload<{ include: typeof openingInclude }>;
+type PoolCard = Prisma.CardGetPayload<{
+  include: { rarity: true; variants: true };
+}>;
 
 @Injectable()
 export class BoostersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly draw: BoosterDrawService,
+  ) {}
 
-  async listProducts() {
-    const now = new Date();
+  async listProducts(): Promise<BoosterProduct[]> {
     const products = await this.prisma.boosterProduct.findMany({
-      where: {
-        status: 'published',
-        AND: [
-          { OR: [{ availableFrom: null }, { availableFrom: { lte: now } }] },
-          { OR: [{ availableUntil: null }, { availableUntil: { gt: now } }] },
-        ],
-      },
-      select: {
-        id: true,
-        name: true,
-        slug: true,
-        description: true,
-        artworkPath: true,
-        priceCurrency: true,
-        priceAmount: true,
-        cardsPerPack: true,
-        availableUntil: true,
-        slots: { select: { weightConfig: true } },
-      },
-      orderBy: { createdAt: 'desc' },
+      where: { status: 'published', isActive: true, deletedAt: null },
+      include: publicBoosterInclude,
+      orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
     });
-    const variantIds = [
-      ...new Set(
-        products.flatMap((product) =>
-          product.slots.flatMap((slot) => {
-            const config = weightConfigSchema.safeParse(slot.weightConfig);
-            return config.success
-              ? config.data.entries.map(({ cardVariantId }) => cardVariantId)
-              : [];
-          }),
-        ),
-      ),
-    ];
-    const variants = variantIds.length
-      ? await this.prisma.cardVariant.findMany({
-          where: {
-            id: { in: variantIds },
-            card: { status: 'published', isActive: true, deletedAt: null },
-          },
-          select: {
-            id: true,
-            name: true,
-            card: { include: cardRelations },
-          },
-        })
-      : [];
-    const variantsById = new Map(variants.map((variant) => [variant.id, variant]));
-    return products.map(({ slots, ...product }) => {
-      const possibleIds = new Set(
-        slots.flatMap((slot) => {
-          const config = weightConfigSchema.safeParse(slot.weightConfig);
-          return config.success
-            ? config.data.entries.map(({ cardVariantId }) => cardVariantId)
-            : [];
-        }),
-      );
-      return {
-        ...product,
-        priceAmount: product.priceAmount.toString(),
-        possibleCards: [...possibleIds]
-          .map((id) => variantsById.get(id))
-          .filter((variant): variant is NonNullable<typeof variant> => Boolean(variant))
-          .map((variant) => ({
-            variantId: variant.id,
-            variantName: variant.name,
-            card: toCard(variant.card),
-          })),
-      };
-    });
+    return products.map((product) => this.serializeProduct(product));
   }
 
-  async openPack(userId: string, productId: string, idempotencyKey: string) {
+  async getProduct(id: string): Promise<BoosterProduct> {
+    const product = await this.prisma.boosterProduct.findFirst({
+      where: { id, status: 'published', isActive: true, deletedAt: null },
+      include: publicBoosterInclude,
+    });
+    if (!product) this.notFound();
+    return this.serializeProduct(product);
+  }
+
+  async publicDropRates(id: string) {
+    const product = await this.prisma.boosterProduct.findFirst({
+      where: { id, status: 'published', isActive: true, deletedAt: null },
+      select: {
+        id: true,
+        dropRates: {
+          select: {
+            dropRateBps: true,
+            sortOrder: true,
+            rarity: { select: { id: true, name: true, slug: true, displayColor: true } },
+          },
+          orderBy: [{ sortOrder: 'asc' }, { rarity: { name: 'asc' } }],
+        },
+      },
+    });
+    if (!product) this.notFound();
+    return product.dropRates;
+  }
+
+  async openPack(
+    userId: string,
+    productId: string,
+    idempotencyKey: string,
+  ): Promise<OpenBoosterResult> {
     const previous = await this.findCompleted(userId, idempotencyKey);
     if (previous) return this.serializeOpening(previous);
 
-    const opening = await this.prisma.runInTransaction(
-      async (transaction) => {
-        const existing = await transaction.packOpening.findUnique({
-          where: { userId_idempotencyKey: { userId, idempotencyKey } },
-          include: {
-            boosterProduct: true,
-            cards: {
-              include: { cardVariant: { include: { card: { include: cardRelations } } } },
-            },
-          },
-        });
-        if (existing) {
-          if (existing.status === 'completed') return existing;
-          throw new ConflictException({
-            code: 'PACK_OPENING_IN_PROGRESS',
-            message: 'Cette ouverture est déjà en cours.',
+    try {
+      const opening = await this.prisma.runInTransaction(
+        async (transaction) => {
+          const existing = await transaction.packOpening.findUnique({
+            where: { userId_idempotencyKey: { userId, idempotencyKey } },
+            include: openingInclude,
           });
-        }
-
-        const now = new Date();
-        const product = await transaction.boosterProduct.findFirst({
-          where: {
-            id: productId,
-            status: 'published',
-            AND: [
-              { OR: [{ availableFrom: null }, { availableFrom: { lte: now } }] },
-              { OR: [{ availableUntil: null }, { availableUntil: { gt: now } }] },
-            ],
-          },
-          include: { slots: { orderBy: { slotIndex: 'asc' } } },
-        });
-        if (!product) {
-          throw new NotFoundException({
-            code: 'BOOSTER_PRODUCT_NOT_FOUND',
-            message: 'Ce booster est indisponible.',
-          });
-        }
-        if (!product.slots.length) {
-          throw new BadRequestException({
-            code: 'BOOSTER_NOT_CONFIGURED',
-            message: "Ce booster n'a pas encore de configuration de tirage.",
-          });
-        }
-
-        const wallet = await transaction.wallet.findUnique({
-          where: {
-            userId_currencyCode: { userId, currencyCode: product.priceCurrency },
-          },
-        });
-        if (!wallet || wallet.balance < product.priceAmount) {
-          throw new BadRequestException({
-            code: 'INSUFFICIENT_FUNDS',
-            message: 'Solde insuffisant pour ouvrir ce booster.',
-          });
-        }
-        const debited = await transaction.wallet.updateMany({
-          where: {
-            userId,
-            currencyCode: product.priceCurrency,
-            balance: { gte: product.priceAmount },
-          },
-          data: { balance: { decrement: product.priceAmount } },
-        });
-        if (debited.count !== 1) {
-          throw new ConflictException({
-            code: 'WALLET_CONCURRENT_UPDATE',
-            message: 'Le solde a changé. Réessayez avec une nouvelle requête.',
-          });
-        }
-        const balanceAfter = wallet.balance - product.priceAmount;
-        await transaction.currencyTransaction.create({
-          data: {
-            userId,
-            currencyCode: product.priceCurrency,
-            amount: -product.priceAmount,
-            balanceAfter,
-            reason: 'BOOSTER_OPENING',
-            referenceType: 'booster_product',
-            referenceId: product.id,
-            idempotencyKey,
-          },
-        });
-        const created = await transaction.packOpening.create({
-          data: {
-            userId,
-            boosterProductId: product.id,
-            idempotencyKey,
-            status: 'pending',
-            priceCurrency: product.priceCurrency,
-            priceAmount: product.priceAmount,
-          },
-        });
-
-        let drawnCount = 0;
-        for (const slot of product.slots) {
-          const config = weightConfigSchema.safeParse(slot.weightConfig);
-          if (!config.success) {
-            throw new BadRequestException({
-              code: 'BOOSTER_CONFIGURATION_INVALID',
-              message: 'La configuration serveur de ce booster est invalide.',
+          if (existing) {
+            if (existing.status === 'completed') return existing;
+            throw new ConflictException({
+              code: 'PACK_OPENING_ALREADY_EXISTS',
+              message: 'Cette ouverture est déjà en cours.',
             });
           }
-          for (let index = 0; index < slot.quantity; index += 1) {
-            const selected = this.weightedPick(config.data.entries);
-            await transaction.packOpeningCard.upsert({
-              where: {
-                packOpeningId_slotIndex_cardVariantId: {
-                  packOpeningId: created.id,
-                  cardVariantId: selected.cardVariantId,
-                  slotIndex: slot.slotIndex,
-                },
-              },
-              create: {
-                packOpeningId: created.id,
-                cardVariantId: selected.cardVariantId,
-                slotIndex: slot.slotIndex,
-                probabilityData: { weight: selected.weight },
-              },
-              update: { quantity: { increment: 1 } },
-            });
-            await transaction.userCard.upsert({
-              where: {
-                userId_cardVariantId: { userId, cardVariantId: selected.cardVariantId },
-              },
+
+          const now = new Date();
+          const product = await transaction.boosterProduct.findUnique({
+            where: { id: productId },
+            include: configuredBoosterInclude,
+          });
+          this.assertOpenable(product, now);
+          const rates = product.dropRates.map(({ rarityId, dropRateBps }) => ({
+            rarityId,
+            dropRateBps,
+          }));
+          this.draw.assertRates(rates, product.guaranteedCommonRarityId);
+
+          const rarityIds = [
+            product.guaranteedCommonRarityId,
+            ...product.dropRates.map(({ rarityId }) => rarityId),
+          ];
+          const eligibleCards = await transaction.card.findMany({
+            where: {
+              seasonId: product.seasonId,
+              rarityId: { in: rarityIds },
+              status: 'published',
+              isActive: true,
+              deletedAt: null,
+              variants: { some: {} },
+            },
+            include: {
+              rarity: true,
+              variants: { orderBy: [{ displayOrder: 'asc' }, { createdAt: 'asc' }], take: 1 },
+            },
+            orderBy: [{ number: 'asc' }, { id: 'asc' }],
+          });
+          const commonCards = eligibleCards.filter(
+            ({ rarityId }) => rarityId === product.guaranteedCommonRarityId,
+          );
+          const premiumCards = new Map<string, PoolCard[]>();
+          for (const rate of product.dropRates) {
+            premiumCards.set(
+              rate.rarityId,
+              eligibleCards.filter(({ rarityId }) => rarityId === rate.rarityId),
+            );
+          }
+          const drawn = this.draw.draw(commonCards, premiumCards, rates);
+
+          if (product.priceAmount > 0n) {
+            await this.debitWallet(transaction, userId, product, idempotencyKey);
+          }
+
+          const created = await transaction.packOpening.create({
+            data: {
+              userId,
+              boosterProductId: product.id,
+              seasonId: product.seasonId,
+              idempotencyKey,
+              status: 'pending',
+              priceCurrency: product.priceCurrency,
+              priceAmount: product.priceAmount,
+              boosterNameSnapshot: product.name,
+            },
+          });
+
+          for (const result of drawn) {
+            const variant = result.card.variants[0]!;
+            const inventory = await transaction.userCard.upsert({
+              where: { userId_cardVariantId: { userId, cardVariantId: variant.id } },
               create: {
                 userId,
-                cardVariantId: selected.cardVariantId,
+                cardVariantId: variant.id,
                 quantity: 1,
-              },
-              update: {
-                quantity: { increment: 1 },
+                firstObtainedAt: now,
                 lastObtainedAt: now,
               },
+              update: { quantity: { increment: 1 }, lastObtainedAt: now },
             });
-            drawnCount += 1;
+            const previousQuantity = inventory.quantity - 1;
+            await transaction.packOpeningCard.create({
+              data: {
+                packOpeningId: created.id,
+                cardId: result.card.id,
+                cardVariantId: variant.id,
+                rarityId: result.card.rarityId,
+                slotIndex: result.slotPosition,
+                slotPosition: result.slotPosition,
+                slotCategory: result.slotCategory,
+                quantity: 1,
+                probabilityData:
+                  result.dropRateBps === null
+                    ? { guaranteed: true }
+                    : { dropRateBps: result.dropRateBps },
+                cardNameSnapshot: result.card.name,
+                rarityNameSnapshot: result.card.rarity.name,
+                previousQuantity,
+                newQuantity: inventory.quantity,
+              },
+            });
           }
-        }
-        if (drawnCount !== product.cardsPerPack) {
-          throw new BadRequestException({
-            code: 'BOOSTER_CONFIGURATION_INVALID',
-            message: 'Le nombre de cartes configuré ne correspond pas au produit.',
+
+          return transaction.packOpening.update({
+            where: { id: created.id },
+            data: { status: 'completed', openedAt: now },
+            include: openingInclude,
           });
-        }
-        return transaction.packOpening.update({
-          where: { id: created.id },
-          data: { status: 'completed', openedAt: now },
-          include: {
-            boosterProduct: true,
-            cards: {
-              include: { cardVariant: { include: { card: { include: cardRelations } } } },
-            },
-          },
-        });
-      },
-      { isolationLevel: 'Serializable' },
-    );
-    return this.serializeOpening(opening);
+        },
+        { isolationLevel: 'Serializable', timeout: 15_000 },
+      );
+      return this.serializeOpening(opening);
+    } catch (error) {
+      const completed = await this.findCompleted(userId, idempotencyKey);
+      if (completed) return this.serializeOpening(completed);
+      throw error;
+    }
   }
 
-  private weightedPick(entries: Array<{ cardVariantId: string; weight: number }>) {
-    const total = entries.reduce((sum, entry) => sum + entry.weight, 0);
-    let value = randomInt(total);
-    for (const entry of entries) {
-      value -= entry.weight;
-      if (value < 0) return entry;
+  async openings(userId: string, query: PackOpeningsQuery) {
+    const where = { userId, status: 'completed' as const };
+    const [rows, total] = await this.prisma.$transaction([
+      this.prisma.packOpening.findMany({
+        where,
+        include: openingInclude,
+        orderBy: { openedAt: 'desc' },
+        skip: (query.page - 1) * query.pageSize,
+        take: query.pageSize,
+      }),
+      this.prisma.packOpening.count({ where }),
+    ]);
+    return {
+      data: rows.map((row) => this.serializePackOpening(row)),
+      pagination: {
+        page: query.page,
+        pageSize: query.pageSize,
+        total,
+        pageCount: Math.ceil(total / query.pageSize),
+      },
+    };
+  }
+
+  async opening(userId: string, openingId: string): Promise<PackOpening> {
+    const row = await this.prisma.packOpening.findFirst({
+      where: { id: openingId, userId, status: 'completed' },
+      include: openingInclude,
+    });
+    if (!row) {
+      throw new NotFoundException({
+        code: 'PACK_OPENING_NOT_FOUND',
+        message: 'Ouverture introuvable.',
+      });
     }
-    throw new Error('Weighted selection failed');
+    return this.serializePackOpening(row);
+  }
+
+  async recentOpenings(userId: string): Promise<PackOpening[]> {
+    const response = await this.openings(userId, { page: 1, pageSize: 12 });
+    return response.data;
+  }
+
+  private assertOpenable(
+    product: ConfiguredBoosterRow | null,
+    now: Date,
+  ): asserts product is ConfiguredBoosterRow {
+    if (!product) this.notFound();
+    if (product.deletedAt) {
+      throw new NotFoundException({ code: 'BOOSTER_ARCHIVED', message: 'Ce booster est archivé.' });
+    }
+    if (!product.isActive || product.status !== 'published') {
+      throw new BadRequestException({
+        code: 'BOOSTER_NOT_ACTIVE',
+        message: 'Ce booster n’est pas actif.',
+      });
+    }
+    if (product.availableFrom && product.availableFrom > now) {
+      throw new BadRequestException({
+        code: 'BOOSTER_NOT_AVAILABLE',
+        message: 'Ce booster n’est pas encore disponible.',
+      });
+    }
+    if (product.availableUntil && product.availableUntil <= now) {
+      throw new BadRequestException({
+        code: 'BOOSTER_NOT_AVAILABLE',
+        message: 'Ce booster n’est plus disponible.',
+      });
+    }
+    if (!product.season.isActive || product.season.deletedAt) {
+      throw new BadRequestException({
+        code: 'BOOSTER_SEASON_NOT_FOUND',
+        message: 'La saison de ce booster est indisponible.',
+      });
+    }
+    if (
+      product.cardsPerPack !== 8 ||
+      product.commonCardCount !== 6 ||
+      product.premiumCardCount !== 2
+    ) {
+      throw new BadRequestException({
+        code: 'BOOSTER_INVALID_CONFIGURATION',
+        message: 'La configuration du booster ne respecte pas la répartition Safir.',
+      });
+    }
+  }
+
+  private async debitWallet(
+    transaction: Parameters<Parameters<PrismaService['runInTransaction']>[0]>[0],
+    userId: string,
+    product: ConfiguredBoosterRow,
+    idempotencyKey: string,
+  ) {
+    if (!product.priceCurrency) {
+      throw new BadRequestException({
+        code: 'BOOSTER_INVALID_CONFIGURATION',
+        message: 'La monnaie de ce booster payant est absente.',
+      });
+    }
+    const wallet = await transaction.wallet.findUnique({
+      where: { userId_currencyCode: { userId, currencyCode: product.priceCurrency } },
+    });
+    if (!wallet || wallet.balance < product.priceAmount) {
+      throw new BadRequestException({
+        code: 'INSUFFICIENT_BALANCE',
+        message: 'Votre solde est insuffisant.',
+      });
+    }
+    const debited = await transaction.wallet.updateMany({
+      where: {
+        userId,
+        currencyCode: product.priceCurrency,
+        balance: { gte: product.priceAmount },
+      },
+      data: { balance: { decrement: product.priceAmount } },
+    });
+    if (debited.count !== 1) {
+      throw new ConflictException({
+        code: 'WALLET_CONCURRENT_UPDATE',
+        message: 'Votre solde a changé. Réessayez.',
+      });
+    }
+    await transaction.currencyTransaction.create({
+      data: {
+        userId,
+        currencyCode: product.priceCurrency,
+        amount: -product.priceAmount,
+        balanceAfter: wallet.balance - product.priceAmount,
+        reason: 'BOOSTER_OPENING',
+        referenceType: 'booster_product',
+        referenceId: product.id,
+        idempotencyKey,
+        metadata: { boosterName: product.name },
+      },
+    });
   }
 
   private findCompleted(userId: string, idempotencyKey: string) {
     return this.prisma.packOpening.findFirst({
       where: { userId, idempotencyKey, status: 'completed' },
-      include: {
-        boosterProduct: true,
-        cards: { include: { cardVariant: { include: { card: { include: cardRelations } } } } },
-      },
+      include: openingInclude,
     });
   }
 
-  async recentOpenings(userId: string) {
-    const openings = await this.prisma.packOpening.findMany({
-      where: { userId, status: 'completed' },
-      include: {
-        boosterProduct: true,
-        cards: { include: { cardVariant: { include: { card: { include: cardRelations } } } } },
-      },
-      orderBy: { openedAt: 'desc' },
-      take: 12,
-    });
-    return openings.map((opening) => this.serializeOpening(opening));
-  }
-
-  private serializeOpening(opening: {
-    id: string;
-    status: string;
-    priceCurrency: string;
-    priceAmount: bigint;
-    openedAt: Date | null;
-    boosterProduct: {
-      id: string;
-      name: string;
-      slug: string;
-      artworkPath: string | null;
-    };
-    cards: Array<{
-      quantity: number;
-      cardVariant: {
-        id: string;
-        cardId: string;
-        name: string;
-        slug: string;
-        finish: string;
-        artworkPath: string | null;
-        card: CardWithRelations;
-      };
-    }>;
-  }) {
+  private serializeProduct(row: PublicBoosterRow): BoosterProduct {
+    const now = new Date();
+    const unavailableReason =
+      row.availableFrom && row.availableFrom > now
+        ? 'BOOSTER_NOT_AVAILABLE'
+        : row.availableUntil && row.availableUntil <= now
+          ? 'BOOSTER_NOT_AVAILABLE'
+          : null;
     return {
-      id: opening.id,
-      status: opening.status,
-      priceCurrency: opening.priceCurrency,
-      priceAmount: opening.priceAmount.toString(),
-      openedAt: opening.openedAt?.toISOString() ?? null,
-      product: {
-        id: opening.boosterProduct.id,
-        name: opening.boosterProduct.name,
-        slug: opening.boosterProduct.slug,
-        artworkPath: opening.boosterProduct.artworkPath,
+      id: row.id,
+      name: row.name,
+      slug: row.slug,
+      description: row.description,
+      imageUrl: row.imageUrl,
+      season: {
+        id: row.season.id,
+        name: row.season.name,
+        slug: row.season.slug,
+        code: row.season.code,
       },
-      cards: opening.cards.map(({ quantity, cardVariant }) => ({
-        quantity,
-        variant: { ...cardVariant, card: toCard(cardVariant.card) },
-      })),
+      guaranteedCommonRarity: {
+        id: row.guaranteedCommonRarity.id,
+        name: row.guaranteedCommonRarity.name,
+        slug: row.guaranteedCommonRarity.slug,
+        displayColor: row.guaranteedCommonRarity.displayColor,
+      },
+      cardsPerPack: row.cardsPerPack,
+      commonCardCount: row.commonCardCount,
+      premiumCardCount: row.premiumCardCount,
+      cost: { amount: Number(row.priceAmount), currencyCode: row.priceCurrency },
+      status: row.status,
+      isActive: row.isActive,
+      isAvailable: unavailableReason === null,
+      unavailableReason,
+      availableFrom: row.availableFrom?.toISOString() ?? null,
+      availableUntil: row.availableUntil?.toISOString() ?? null,
+      sortOrder: row.sortOrder,
     };
+  }
+
+  private serializePackOpening(row: OpeningRow): PackOpening {
+    const result = this.serializeOpening(row);
+    return {
+      id: result.openingId,
+      booster: result.booster,
+      status: 'completed',
+      cost: result.cost,
+      openedAt: result.openedAt,
+      cards: result.cards,
+    };
+  }
+
+  private serializeOpening(row: OpeningRow): OpenBoosterResult {
+    return {
+      openingId: row.id,
+      booster: {
+        id: row.boosterProduct.id,
+        name: row.boosterNameSnapshot,
+        imageUrl: row.boosterProduct.imageUrl,
+        season: {
+          id: row.season.id,
+          name: row.season.name,
+          slug: row.season.slug,
+          code: row.season.code,
+        },
+      },
+      cards: row.cards.map((result) => ({
+        slotPosition: result.slotPosition,
+        slotCategory: result.slotCategory,
+        card: {
+          id: result.card.id,
+          name: result.cardNameSnapshot,
+          number: Number(result.card.number),
+          imageUrl: result.card.imageUrl,
+          attack: Number(result.card.attack),
+          defense: Number(result.card.defense),
+          value: Number(result.card.value),
+        },
+        variant: {
+          id: result.cardVariant.id,
+          name: result.cardVariant.name,
+          slug: result.cardVariant.slug,
+          finish: result.cardVariant.finish,
+          artworkPath: result.cardVariant.artworkPath,
+        },
+        rarity: {
+          id: result.rarity.id,
+          name: result.rarityNameSnapshot,
+          slug: result.rarity.slug,
+          displayColor: result.rarity.displayColor,
+        },
+        previousQuantity: result.previousQuantity,
+        newQuantity: result.newQuantity,
+        isNew: result.previousQuantity === 0,
+      })),
+      cost: { amount: Number(row.priceAmount), currencyCode: row.priceCurrency },
+      openedAt: row.openedAt?.toISOString() ?? row.createdAt.toISOString(),
+    };
+  }
+
+  private notFound(): never {
+    throw new NotFoundException({ code: 'BOOSTER_NOT_FOUND', message: 'Booster introuvable.' });
   }
 }

@@ -51,6 +51,8 @@ const rarityId = '33333333-3333-4333-8333-333333333333';
 const seasonId = '44444444-4444-4444-8444-444444444444';
 const typeId = '55555555-5555-4555-8555-555555555555';
 const cardId = '66666666-6666-4666-8666-666666666666';
+const boosterId = '77777777-7777-4777-8777-777777777777';
+const commonRarityId = '99999999-9999-4999-8999-999999999999';
 const timestamp = '2026-07-17T12:00:00.000Z';
 
 const profile = {
@@ -116,6 +118,13 @@ const rarity = {
   updatedAt: timestamp,
   deletedAt: null,
 };
+const commonRarity = {
+  ...rarity,
+  id: commonRarityId,
+  name: 'Commune',
+  slug: 'commune',
+  sortOrder: 0,
+};
 const season = {
   id: seasonId,
   name: 'Origines',
@@ -169,6 +178,75 @@ const adminCard = {
   updatedAt: timestamp,
   deletedAt: null,
 };
+const booster = {
+  id: boosterId,
+  name: 'Booster Origines E2E',
+  slug: 'booster-origines-e2e',
+  description: 'Design de validation E2E.',
+  imageUrl: 'https://example.com/booster.webp',
+  season,
+  guaranteedCommonRarity: commonRarity,
+  cardsPerPack: 8,
+  commonCardCount: 6,
+  premiumCardCount: 2,
+  cost: { amount: 0, currencyCode: null },
+  status: 'published',
+  isActive: true,
+  isAvailable: true,
+  unavailableReason: null,
+  availableFrom: null,
+  availableUntil: null,
+  sortOrder: 0,
+  dropRates: [{ rarity, dropRateBps: 10_000, sortOrder: 0 }],
+  validation: {
+    valid: true,
+    errors: [],
+    commonCardCount: 1,
+    premiumPools: [{ rarityId, cardCount: 1 }],
+    dropRateTotalBps: 10_000,
+  },
+  createdAt: timestamp,
+  updatedAt: timestamp,
+  deletedAt: null,
+  openingCount: 0,
+};
+
+const openingCards = Array.from({ length: 8 }, (_, index) => ({
+  slotPosition: index + 1,
+  slotCategory: index < 6 ? 'COMMON' : 'PREMIUM',
+  card: {
+    id: `${String(index + 1).padStart(8, '0')}-aaaa-4aaa-8aaa-aaaaaaaaaaaa`,
+    name: index < 6 ? `Commune ${index + 1}` : `Rare ${index - 5}`,
+    number: index + 1,
+    imageUrl: null,
+    attack: 1,
+    defense: 1,
+    value: 1,
+  },
+  variant: {
+    id: `${String(index + 1).padStart(8, '0')}-bbbb-4bbb-8bbb-bbbbbbbbbbbb`,
+    name: 'Standard',
+    slug: 'standard',
+    finish: 'standard',
+    artworkPath: null,
+  },
+  rarity: index < 6 ? commonRarity : rarity,
+  previousQuantity: 0,
+  newQuantity: 1,
+  isNew: true,
+}));
+const openingResult = {
+  openingId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+  booster: {
+    id: booster.id,
+    name: booster.name,
+    imageUrl: booster.imageUrl,
+    season: booster.season,
+  },
+  cards: openingCards,
+  cost: booster.cost,
+  openedAt: timestamp,
+};
 
 async function mockSupabaseAuth(page: Page) {
   await page.route('**/auth/v1/token**', (route) =>
@@ -189,6 +267,15 @@ async function mockSupabaseAuth(page: Page) {
 
 async function mockAdminApi(page: Page, actorProfile = profile) {
   await mockSupabaseAuth(page);
+  await page.route('https://example.com/booster.webp', (route) =>
+    route.fulfill({
+      contentType: 'image/png',
+      body: Buffer.from(
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+        'base64',
+      ),
+    }),
+  );
   const mutations: Array<{ method: string; path: string; body: unknown }> = [];
   let createdSeason: CardSeason | null = null;
   let targetStatus: 'ACTIVE' | 'SUSPENDED' = 'ACTIVE';
@@ -224,6 +311,24 @@ async function mockAdminApi(page: Page, actorProfile = profile) {
           publishedCardCount: 0,
           favoriteRarity: null,
           sets: [],
+        },
+      });
+    }
+    if (path.endsWith('/me/wallets')) return route.fulfill({ json: [] });
+    if (path.endsWith('/me/pack-openings')) {
+      return route.fulfill({
+        json: {
+          data: [
+            {
+              id: openingResult.openingId,
+              booster: openingResult.booster,
+              status: 'completed',
+              cost: openingResult.cost,
+              openedAt: openingResult.openedAt,
+              cards: openingResult.cards,
+            },
+          ],
+          pagination: { page: 1, pageSize: 8, total: 1, pageCount: 1 },
         },
       });
     }
@@ -360,8 +465,30 @@ async function mockAdminApi(page: Page, actorProfile = profile) {
         json: { sets: [], rarities: [rarity], seasons: [season], types: [cardType] },
       });
     }
+    if (path.endsWith(`/admin/boosters/${boosterId}`)) {
+      if (request.method() === 'PATCH')
+        mutations.push({ method: request.method(), path, body: request.postDataJSON() });
+      return route.fulfill({ json: booster });
+    }
+    if (path.endsWith('/admin/boosters')) {
+      if (request.method() === 'POST') {
+        mutations.push({ method: request.method(), path, body: request.postDataJSON() });
+        return route.fulfill({ json: booster });
+      }
+      return route.fulfill({
+        json: { data: [booster], pagination: { page: 1, pageSize: 25, total: 1, pageCount: 1 } },
+      });
+    }
+    if (path.endsWith(`/booster-products/${boosterId}/drop-rates`)) {
+      return route.fulfill({ json: booster.dropRates });
+    }
+    if (path.endsWith(`/booster-products/${boosterId}/open`)) {
+      mutations.push({ method: request.method(), path, body: request.postDataJSON() });
+      return route.fulfill({ json: openingResult });
+    }
+    if (path.endsWith('/booster-products')) return route.fulfill({ json: [booster] });
     if (path.endsWith('/admin/rarities')) {
-      return route.fulfill({ json: request.method() === 'POST' ? rarity : [rarity] });
+      return route.fulfill({ json: request.method() === 'POST' ? rarity : [commonRarity, rarity] });
     }
     if (path.endsWith('/admin/seasons')) {
       if (request.method() === 'POST') {
@@ -412,6 +539,9 @@ async function login(page: Page) {
   await passwordInput.fill(e2ePassword);
   await loginForm.locator('button[type="submit"]:visible').click();
   await page.waitForURL(/\/(collection|admin)/, { timeout: 30_000 });
+  await expect(
+    page.getByRole('button', { name: 'Ouvrir le menu du compte' }).filter({ visible: true }),
+  ).toBeVisible();
 }
 
 function usesMobileNavigation(page: Page): boolean {
@@ -426,6 +556,17 @@ async function openAdministrationNavigation(page: Page) {
   return page.locator(
     mobile ? '#mobile-administration-navigation' : '#desktop-administration-navigation',
   );
+}
+
+async function expectNoHorizontalOverflowAtSupportedWidths(page: Page) {
+  for (const width of [375, 430, 768, 1024, 1280, 1440]) {
+    await page.setViewportSize({ width, height: width < 768 ? 812 : 900 });
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+      ),
+    ).toBe(true);
+  }
 }
 
 test.describe('authenticated administration workflows', () => {
@@ -522,6 +663,69 @@ test.describe('authenticated administration workflows', () => {
     expect({ consoleErrors, failedResponses }).toEqual({ consoleErrors: [], failedResponses: [] });
   });
 
+  test('creates a configured booster and reveals the server-provided eight cards', async ({
+    page,
+  }) => {
+    const openingViewport = page.viewportSize() ?? { width: 1280, height: 720 };
+    const consoleErrors: string[] = [];
+    const failedResponses: string[] = [];
+    page.on('console', (message) => {
+      if (message.type() === 'error') consoleErrors.push(message.text());
+    });
+    page.on('response', (response) => {
+      if (response.status() >= 500) failedResponses.push(response.url());
+    });
+    const mutations = await mockAdminApi(page);
+    await login(page);
+    await page.goto('/admin/boosters/new');
+
+    const administration = await openAdministrationNavigation(page);
+    await expect(administration.getByRole('link', { name: 'Boosters' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+    if (usesMobileNavigation(page)) await page.getByRole('button', { name: 'Fermer' }).click();
+    await page.getByLabel('Nom').fill('Booster Origines E2E');
+    await expect(page.getByLabel('Slug')).toHaveValue('booster-origines-e2e');
+    await page.getByLabel('Saison').selectOption(seasonId);
+    await page.getByLabel('Rareté commune garantie').selectOption(commonRarityId);
+    await page.getByLabel('Inclure Rare').check();
+    await page.getByLabel('Taux de Rare').fill('100');
+    await page.getByLabel('URL HTTPS').fill('https://example.com/booster.webp');
+    await page.getByLabel('Booster actif').check();
+    await expect(page.getByText('Total : 100 %')).toBeVisible();
+    await expectNoHorizontalOverflowAtSupportedWidths(page);
+    await page.getByRole('button', { name: 'Enregistrer' }).click();
+    await expect(page).toHaveURL(new RegExp(`/admin/boosters/${boosterId}$`));
+    await expect
+      .poll(() =>
+        mutations.some(({ path, method }) => path.endsWith('/admin/boosters') && method === 'POST'),
+      )
+      .toBe(true);
+
+    await page.goto('/admin/boosters');
+    await expect(page.getByRole('heading', { level: 1, name: 'Boosters' })).toBeVisible();
+    await expectNoHorizontalOverflowAtSupportedWidths(page);
+
+    await page.goto('/boosters');
+    await expect(page.getByRole('heading', { level: 2, name: booster.name })).toBeVisible();
+    await expectNoHorizontalOverflowAtSupportedWidths(page);
+    await page.setViewportSize(openingViewport);
+    await page.getByRole('button', { name: 'Ouvrir', exact: true }).click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Confirmer l’ouverture' }).click();
+    await expect(page.getByRole('dialog').getByText('Nouvelle carte')).toHaveCount(8);
+    await expect(page.getByRole('dialog').locator('[data-slot-category="COMMON"]')).toHaveCount(6);
+    await expect(page.getByRole('dialog').locator('[data-slot-category="PREMIUM"]')).toHaveCount(2);
+    await page.getByRole('dialog').getByRole('link', { name: 'Voir ma collection' }).click();
+    await expect(page).toHaveURL(/\/collection$/);
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+      ),
+    ).toBe(true);
+    expect({ consoleErrors, failedResponses }).toEqual({ consoleErrors: [], failedResponses: [] });
+  });
+
   for (const actorRole of ['USER', 'PIONEER', 'MODERATOR', 'ADMINISTRATOR'] as const) {
     test(`${actorRole} receives the expected administration navigation`, async ({ page }) => {
       const roleLabel = {
@@ -553,6 +757,7 @@ test.describe('authenticated administration workflows', () => {
       await expect(administration.getByRole('link', { name: 'Vue d’ensemble' })).toBeVisible();
       await expect(administration.getByRole('link', { name: 'Utilisateurs' })).toBeVisible();
       await expect(administration.getByRole('link', { name: 'Cartes', exact: true })).toBeVisible();
+      await expect(administration.getByRole('link', { name: 'Boosters' })).toBeVisible();
       await expect(administration.getByRole('link', { name: 'Journaux' })).toHaveCount(
         actorRole === 'ADMINISTRATOR' ? 1 : 0,
       );

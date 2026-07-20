@@ -44,6 +44,13 @@ export type AppPermission =
   | 'CATALOG_DELETE_PERMANENTLY'
   | 'CARDS_RESTORE'
   | 'CARDS_DELETE_PERMANENTLY'
+  | 'BOOSTERS_READ_ADMIN'
+  | 'BOOSTERS_CREATE'
+  | 'BOOSTERS_UPDATE'
+  | 'BOOSTERS_ARCHIVE'
+  | 'BOOSTERS_RESTORE'
+  | 'BOOSTERS_DELETE_PERMANENTLY'
+  | 'BOOSTERS_MANAGE_DROP_RATES'
   | 'AUDIT_LOGS_READ';
 
 const moderatorPermissions = [
@@ -64,6 +71,11 @@ const moderatorPermissions = [
   'CATALOG_CREATE',
   'CATALOG_UPDATE',
   'CATALOG_ARCHIVE',
+  'BOOSTERS_READ_ADMIN',
+  'BOOSTERS_CREATE',
+  'BOOSTERS_UPDATE',
+  'BOOSTERS_ARCHIVE',
+  'BOOSTERS_MANAGE_DROP_RATES',
 ] as const satisfies readonly AppPermission[];
 
 const administratorPermissions = [
@@ -76,6 +88,8 @@ const administratorPermissions = [
   'CATALOG_DELETE_PERMANENTLY',
   'CARDS_RESTORE',
   'CARDS_DELETE_PERMANENTLY',
+  'BOOSTERS_RESTORE',
+  'BOOSTERS_DELETE_PERMANENTLY',
   'AUDIT_LOGS_READ',
 ] as const satisfies readonly AppPermission[];
 
@@ -563,35 +577,101 @@ export interface ProfileSummary {
   friendsCount: number;
 }
 
-export interface BoosterProductSummary {
+export type PackSlotCategory = 'COMMON' | 'PREMIUM';
+
+export interface BoosterDropRate {
+  rarity: Pick<CardRarity, 'id' | 'name' | 'slug' | 'displayColor'>;
+  dropRateBps: number;
+  sortOrder: number;
+}
+
+export interface BoosterProduct {
   id: string;
   name: string;
   slug: string;
   description: string | null;
-  artworkPath: string | null;
-  priceCurrency: string;
-  priceAmount: string;
+  imageUrl: string | null;
+  season: Pick<CardSeason, 'id' | 'name' | 'slug' | 'code'>;
+  guaranteedCommonRarity: Pick<CardRarity, 'id' | 'name' | 'slug' | 'displayColor'>;
   cardsPerPack: number;
+  commonCardCount: number;
+  premiumCardCount: number;
+  cost: { amount: number; currencyCode: string | null };
+  status: PublicationStatus;
+  isActive: boolean;
+  isAvailable: boolean;
+  unavailableReason: string | null;
+  availableFrom: string | null;
   availableUntil: string | null;
-  possibleCards: Array<{
-    variantId: string;
-    variantName: string;
-    card: CardSummary;
-  }>;
+  sortOrder: number;
 }
 
-export interface BoosterOpening {
-  id: string;
-  product: Pick<BoosterProductSummary, 'id' | 'name' | 'slug' | 'artworkPath'>;
-  status: 'pending' | 'completed' | 'failed';
-  priceCurrency: string;
-  priceAmount: string;
-  openedAt: string | null;
-  cards: Array<{
-    quantity: number;
-    variant: CardVariantSummary & { card: CardSummary };
-  }>;
+export type BoosterProductSummary = BoosterProduct;
+
+export interface BoosterValidationResult {
+  valid: boolean;
+  errors: Array<{ code: string; message: string; rarityId?: string }>;
+  commonCardCount: number;
+  premiumPools: Array<{ rarityId: string; cardCount: number }>;
+  dropRateTotalBps: number;
 }
+
+export interface AdminBoosterDetails extends BoosterProduct {
+  dropRates: BoosterDropRate[];
+  validation: BoosterValidationResult;
+  createdAt: string;
+  updatedAt: string;
+  deletedAt: string | null;
+  openingCount: number;
+}
+
+export interface CreateBoosterInput {
+  name: string;
+  slug: string;
+  description?: string | null;
+  imageUrl?: string | null;
+  seasonId: string;
+  guaranteedCommonRarityId: string;
+  costAmount: number;
+  currencyCode?: string | null;
+  availableFrom?: string | null;
+  availableUntil?: string | null;
+  sortOrder: number;
+  isActive: boolean;
+  dropRates: Array<{ rarityId: string; dropRateBps: number; sortOrder: number }>;
+}
+
+export type UpdateBoosterInput = Partial<CreateBoosterInput>;
+
+export interface PackOpeningCard {
+  slotPosition: number;
+  slotCategory: PackSlotCategory;
+  card: Pick<Card, 'id' | 'name' | 'number' | 'imageUrl' | 'attack' | 'defense' | 'value'>;
+  variant: Pick<CardVariantSummary, 'id' | 'name' | 'slug' | 'finish' | 'artworkPath'>;
+  rarity: Pick<CardRarity, 'id' | 'name' | 'slug' | 'displayColor'>;
+  previousQuantity: number;
+  newQuantity: number;
+  isNew: boolean;
+}
+
+export interface OpenBoosterResult {
+  openingId: string;
+  booster: Pick<BoosterProduct, 'id' | 'name' | 'imageUrl' | 'season'>;
+  cards: PackOpeningCard[];
+  cost: { amount: number; currencyCode: string | null };
+  openedAt: string;
+}
+
+export interface PackOpening {
+  id: string;
+  booster: Pick<BoosterProduct, 'id' | 'name' | 'imageUrl' | 'season'>;
+  status: 'pending' | 'completed' | 'failed';
+  cost: { amount: number; currencyCode: string | null };
+  openedAt: string;
+  cards: PackOpeningCard[];
+}
+
+export type BoosterOpening = PackOpening;
 
 export interface WalletSummary {
   currencyCode: string;

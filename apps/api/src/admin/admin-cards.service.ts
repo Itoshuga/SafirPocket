@@ -94,6 +94,15 @@ export class AdminCardsService {
             typeLinks: {
               create: input.typeIds.map((typeId, sortOrder) => ({ typeId, sortOrder })),
             },
+            variants: {
+              create: {
+                name: 'Standard',
+                slug: 'standard',
+                finish: 'standard',
+                artworkPath: input.imageUrl,
+                displayOrder: 0,
+              },
+            },
           },
           include: cardRelations,
         });
@@ -133,6 +142,12 @@ export class AdminCardsService {
           await transaction.cardTypeLink.deleteMany({ where: { cardId } });
           await transaction.cardTypeLink.createMany({
             data: input.typeIds.map((typeId, sortOrder) => ({ cardId, typeId, sortOrder })),
+          });
+        }
+        if (input.imageUrl !== undefined) {
+          await transaction.cardVariant.updateMany({
+            where: { cardId, slug: 'standard' },
+            data: { artworkPath: input.imageUrl },
           });
         }
         const card = await transaction.card.update({
