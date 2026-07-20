@@ -34,12 +34,20 @@ export const queryKeys = {
   adminUserWarnings: (id: string, status = 'all') =>
     ['admin', 'user', id, 'warnings', status] as const,
   adminUserAuditLogs: (id: string) => ['admin', 'user', id, 'audit-logs'] as const,
+  adminCardsRoot: ['admin', 'cards'] as const,
   adminCards: (filters: string) => ['admin', 'cards', filters] as const,
   adminCard: (id: string) => ['admin', 'card', id] as const,
+  adminCardExportEstimate: (options: string) =>
+    ['admin', 'cards', 'export-estimate', options] as const,
+  adminCardDataOperations: (filters: string) =>
+    ['admin', 'cards', 'data-operations', filters] as const,
   adminBoosters: (filters: string) => ['admin', 'boosters', filters] as const,
   adminBooster: (id: string) => ['admin', 'booster', id] as const,
+  adminRaritiesRoot: ['admin', 'rarities'] as const,
   adminRarities: (filters = 'active') => ['admin', 'rarities', filters] as const,
+  adminSeasonsRoot: ['admin', 'seasons'] as const,
   adminSeasons: (filters = 'active') => ['admin', 'seasons', filters] as const,
+  adminCardTypesRoot: ['admin', 'card-types'] as const,
   adminCardTypes: (filters = 'active') => ['admin', 'card-types', filters] as const,
   adminAuditLogs: (filters: string) => ['admin', 'audit-logs', filters] as const,
 } as const;

@@ -12,6 +12,8 @@ import { AdminTaxonomiesService } from './admin-taxonomies.service.js';
 import { AdminUsersController } from './admin-users.controller.js';
 import { AdminUsersService } from './admin-users.service.js';
 import { SupabaseAdminAuthService } from './supabase-admin-auth.service.js';
+import { CardDataExportService } from './card-data-export.service.js';
+import { CardDataImportService } from './card-data-import.service.js';
 
 @Module({
   controllers: [
@@ -26,6 +28,8 @@ import { SupabaseAdminAuthService } from './supabase-admin-auth.service.js';
   providers: [
     AdminUsersService,
     AdminCardsService,
+    CardDataImportService,
+    CardDataExportService,
     AdminBoostersService,
     BoosterDrawService,
     BoosterRandomService,

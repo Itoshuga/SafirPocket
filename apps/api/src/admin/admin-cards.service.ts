@@ -24,6 +24,11 @@ export class AdminCardsService {
       ...(query.rarityId ? { rarityId: query.rarityId } : {}),
       ...(query.typeId ? { typeLinks: { some: { typeId: query.typeId } } } : {}),
       ...(query.isCommander !== undefined ? { isCommander: query.isCommander } : {}),
+      ...(query.status === 'active'
+        ? { isActive: true }
+        : query.status === 'inactive'
+          ? { isActive: false }
+          : {}),
       ...(query.archived === 'active'
         ? { deletedAt: null }
         : query.archived === 'archived'

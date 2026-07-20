@@ -53,6 +53,8 @@ const typeId = '55555555-5555-4555-8555-555555555555';
 const cardId = '66666666-6666-4666-8666-666666666666';
 const boosterId = '77777777-7777-4777-8777-777777777777';
 const commonRarityId = '99999999-9999-4999-8999-999999999999';
+const cardImportOperationId = 'aaaaaaaa-1111-4111-8111-111111111111';
+const cardImportHash = 'a'.repeat(64);
 const timestamp = '2026-07-17T12:00:00.000Z';
 
 const profile = {
@@ -451,6 +453,136 @@ async function mockAdminApi(page: Page, actorProfile = profile) {
       });
     }
     if (path.endsWith(`/admin/cards/${cardId}`)) return route.fulfill({ json: adminCard });
+    if (path.endsWith('/admin/cards/import/preview')) {
+      if (request.postData()?.includes('invalid.json')) {
+        return route.fulfill({
+          json: {
+            importPreviewId: cardImportOperationId,
+            fileHash: cardImportHash,
+            fileName: 'invalid.json',
+            format: 'JSON',
+            mode: 'CREATE_ONLY',
+            expiresAt: '2026-07-20T12:15:00.000Z',
+            canExecute: false,
+            summary: {
+              totalRows: 1,
+              validRows: 0,
+              createCount: 0,
+              updateCount: 0,
+              skippedCount: 0,
+              errorCount: 1,
+            },
+            rows: [
+              {
+                row: 1,
+                name: 'Carte invalide E2E',
+                action: 'ERROR',
+                errors: [
+                  {
+                    row: 1,
+                    cardName: 'Carte invalide E2E',
+                    field: 'attack',
+                    value: 'inconnue',
+                    code: 'CARD_IMPORT_VALIDATION_FAILED',
+                    message: "L'attaque doit être un entier.",
+                  },
+                ],
+                warnings: [],
+              },
+            ],
+            errors: [
+              {
+                row: 1,
+                cardName: 'Carte invalide E2E',
+                field: 'attack',
+                value: 'inconnue',
+                code: 'CARD_IMPORT_VALIDATION_FAILED',
+                message: "L'attaque doit être un entier.",
+              },
+            ],
+            warnings: [],
+            missingRelations: { rarities: [], seasons: [], types: [] },
+          },
+        });
+      }
+      return route.fulfill({
+        json: {
+          importPreviewId: cardImportOperationId,
+          fileHash: cardImportHash,
+          fileName: 'cards.json',
+          format: 'JSON',
+          mode: 'CREATE_ONLY',
+          expiresAt: '2026-07-20T12:15:00.000Z',
+          canExecute: true,
+          summary: {
+            totalRows: 1,
+            validRows: 1,
+            createCount: 1,
+            updateCount: 0,
+            skippedCount: 0,
+            errorCount: 0,
+          },
+          rows: [
+            {
+              row: 1,
+              name: 'Carte importée E2E',
+              action: 'CREATE',
+              errors: [],
+              warnings: [],
+            },
+          ],
+          errors: [],
+          warnings: [],
+          missingRelations: { rarities: [], seasons: [], types: [] },
+        },
+      });
+    }
+    if (path.endsWith('/admin/cards/import/execute')) {
+      return route.fulfill({
+        json: {
+          operationId: cardImportOperationId,
+          status: 'COMPLETED',
+          summary: {
+            totalRows: 1,
+            validRows: 1,
+            createCount: 1,
+            updateCount: 0,
+            skippedCount: 0,
+            errorCount: 0,
+          },
+          importedCardIds: [cardId],
+          createdRelations: { rarities: 0, seasons: 0, types: 0 },
+          completedAt: timestamp,
+        },
+      });
+    }
+    if (path.includes('/admin/cards/import/template/')) {
+      const csv = path.endsWith('/csv');
+      return route.fulfill({
+        contentType: csv ? 'text/csv' : 'application/json',
+        headers: {
+          'content-disposition': `attachment; filename="safir-cards-template.${csv ? 'csv' : 'json'}"`,
+          'access-control-expose-headers': 'Content-Disposition',
+        },
+        body: csv ? 'name;number\r\n' : '{"format":"safir-cards","version":1,"cards":[]}',
+      });
+    }
+    if (path.endsWith('/admin/cards/export/estimate')) {
+      return route.fulfill({ json: { count: 1, limit: 50_000 } });
+    }
+    if (path.endsWith('/admin/cards/export')) {
+      const csv = request.postDataJSON().format === 'CSV';
+      return route.fulfill({
+        contentType: csv ? 'text/csv' : 'application/json',
+        headers: {
+          'content-disposition': `attachment; filename="safir-cards-2026-07-20.${csv ? 'csv' : 'json'}"`,
+          'access-control-expose-headers': 'Content-Disposition',
+        },
+        body: csv
+          ? '\uFEFFname;number\r\nSentinelle E2E;7\r\n'
+          : JSON.stringify({ format: 'safir-cards', version: 1, cards: [adminCard] }),
+      });
+    }
     if (path.endsWith('/admin/cards')) {
       if (request.method() === 'POST') return route.fulfill({ json: adminCard });
       return route.fulfill({
@@ -724,6 +856,74 @@ test.describe('authenticated administration workflows', () => {
       ),
     ).toBe(true);
     expect({ consoleErrors, failedResponses }).toEqual({ consoleErrors: [], failedResponses: [] });
+  });
+
+  test('previews an import and downloads filtered card exports', async ({ page }) => {
+    const consoleErrors: string[] = [];
+    page.on('console', (message) => {
+      if (message.type() === 'error') consoleErrors.push(message.text());
+    });
+    await mockAdminApi(page);
+    await login(page);
+    await page.goto('/admin/cards');
+
+    await expect(page.getByRole('button', { name: 'Importer' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Exporter' })).toBeVisible();
+    await page.getByRole('button', { name: 'Importer' }).click();
+    let dialog = page.getByRole('dialog');
+    await expect(dialog.getByRole('button', { name: 'JSON' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    await dialog.getByRole('button', { name: 'Continuer' }).click();
+    const templateDownload = page.waitForEvent('download');
+    await dialog.getByRole('button', { name: 'Modèle JSON' }).click();
+    await expect((await templateDownload).suggestedFilename()).toBe('safir-cards-template.json');
+    await dialog.locator('input[type="file"]').setInputFiles({
+      name: 'cards.json',
+      mimeType: 'application/json',
+      buffer: Buffer.from(JSON.stringify({ format: 'safir-cards', version: 1, cards: [] })),
+    });
+    await dialog.getByRole('button', { name: 'Continuer' }).click();
+    await dialog.getByRole('button', { name: 'Analyser le fichier' }).click();
+    await expect(dialog.getByText('Carte importée E2E')).toBeVisible();
+    await dialog.getByRole('button', { name: 'Importer 1 carte' }).click();
+    await expect(dialog.getByText('Toutes les modifications ont été validées.')).toBeVisible();
+    await dialog.getByRole('button', { name: 'Voir les cartes importées' }).click();
+
+    await page.getByRole('button', { name: 'Importer' }).click();
+    dialog = page.getByRole('dialog');
+    await dialog.getByRole('button', { name: 'Continuer' }).click();
+    await dialog.locator('input[type="file"]').setInputFiles({
+      name: 'invalid.json',
+      mimeType: 'application/json',
+      buffer: Buffer.from(
+        JSON.stringify({
+          format: 'safir-cards',
+          version: 1,
+          cards: [{ name: 'Carte invalide E2E', attack: 'inconnue' }],
+        }),
+      ),
+    });
+    await dialog.getByRole('button', { name: 'Continuer' }).click();
+    await dialog.getByRole('button', { name: 'Analyser le fichier' }).click();
+    await expect(dialog.getByText("L'attaque doit être un entier.")).toBeVisible();
+    await dialog.getByRole('button', { name: 'Fermer' }).click();
+
+    for (const format of ['CSV', 'JSON'] as const) {
+      await page.getByRole('button', { name: 'Exporter' }).click();
+      dialog = page.getByRole('dialog');
+      await dialog.getByRole('button', { name: format }).click();
+      await expect(dialog.getByText('1', { exact: true })).toBeVisible();
+      const exportDownload = page.waitForEvent('download');
+      await dialog.getByRole('button', { name: 'Exporter 1 carte' }).click();
+      await expect((await exportDownload).suggestedFilename()).toBe(
+        `safir-cards-2026-07-20.${format.toLowerCase()}`,
+      );
+    }
+
+    await expectNoHorizontalOverflowAtSupportedWidths(page);
+    expect(consoleErrors).toEqual([]);
   });
 
   for (const actorRole of ['USER', 'PIONEER', 'MODERATOR', 'ADMINISTRATOR'] as const) {

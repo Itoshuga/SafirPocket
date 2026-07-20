@@ -21,6 +21,7 @@ async function bootstrap(): Promise<void> {
     credentials: true,
     methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Authorization', 'Content-Type', 'Idempotency-Key', 'X-Request-Id'],
+    exposedHeaders: ['Content-Disposition', 'X-Request-Id', 'X-Card-Data-Operation-Id'],
   });
   app.useGlobalFilters(new ApiExceptionFilter(logger));
   app.useWebSocketAdapter(new SafirSocketAdapter(app, webOrigins));

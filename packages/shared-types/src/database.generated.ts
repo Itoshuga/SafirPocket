@@ -250,6 +250,83 @@ export type Database = {
           },
         ]
       }
+      card_data_operations: {
+        Row: {
+          actor_user_id: string | null
+          completed_at: string | null
+          created_at: string
+          created_count: number
+          error_count: number
+          error_summary: Json
+          expires_at: string | null
+          file_format: string
+          file_hash: string | null
+          file_name: string | null
+          filters: Json
+          id: string
+          import_mode: string | null
+          operation_type: string
+          preview_payload: Json | null
+          skipped_count: number
+          status: string
+          total_rows: number
+          updated_at: string
+          updated_count: number
+        }
+        Insert: {
+          actor_user_id?: string | null
+          completed_at?: string | null
+          created_at?: string
+          created_count?: number
+          error_count?: number
+          error_summary?: Json
+          expires_at?: string | null
+          file_format: string
+          file_hash?: string | null
+          file_name?: string | null
+          filters?: Json
+          id?: string
+          import_mode?: string | null
+          operation_type: string
+          preview_payload?: Json | null
+          skipped_count?: number
+          status: string
+          total_rows?: number
+          updated_at?: string
+          updated_count?: number
+        }
+        Update: {
+          actor_user_id?: string | null
+          completed_at?: string | null
+          created_at?: string
+          created_count?: number
+          error_count?: number
+          error_summary?: Json
+          expires_at?: string | null
+          file_format?: string
+          file_hash?: string | null
+          file_name?: string | null
+          filters?: Json
+          id?: string
+          import_mode?: string | null
+          operation_type?: string
+          preview_payload?: Json | null
+          skipped_count?: number
+          status?: string
+          total_rows?: number
+          updated_at?: string
+          updated_count?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "card_data_operations_actor_user_id_fkey"
+            columns: ["actor_user_id"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       card_rarities: {
         Row: {
           created_at: string

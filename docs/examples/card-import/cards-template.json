@@ -1,0 +1,21 @@
+{
+  "format": "safir-cards",
+  "version": 1,
+  "cards": [
+    {
+      "name": "Carte exemple - à remplacer",
+      "number": 1,
+      "attack": 1,
+      "defense": 1,
+      "value": 1,
+      "description": "Exemple sans donnée réelle.",
+      "imageUrl": null,
+      "isCommander": false,
+      "rarity": { "slug": "rare", "name": "Rare" },
+      "season": { "slug": "saison-exemple", "name": "Saison exemple" },
+      "types": [{ "slug": "type-exemple", "name": "Type exemple" }],
+      "isActive": false,
+      "metadata": {}
+    }
+  ]
+}

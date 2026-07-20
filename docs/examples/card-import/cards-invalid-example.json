@@ -1,0 +1,19 @@
+{
+  "format": "safir-cards",
+  "version": 1,
+  "cards": [
+    {
+      "name": "Exemple volontairement invalide",
+      "number": -1,
+      "attack": "inconnue",
+      "defense": 1,
+      "value": 1,
+      "isCommander": false,
+      "rarity": { "slug": "rarete-inexistante" },
+      "season": { "slug": "saison-inexistante" },
+      "types": [{ "slug": "type-inexistant" }],
+      "isActive": true,
+      "metadata": []
+    }
+  ]
+}

@@ -1,0 +1,2 @@
+﻿name;number;attack;defense;value;description;imageUrl;isCommander;raritySlug;rarityName;seasonSlug;seasonName;typeSlugs;typeNames;isActive;metadata
+Carte exemple - à remplacer;1;1;1;1;Exemple sans donnée réelle.;;false;rare;Rare;saison-exemple;Saison exemple;type-exemple;Type exemple;false;"{}"

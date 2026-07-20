@@ -37,6 +37,9 @@ export type AppPermission =
   | 'CARDS_CREATE'
   | 'CARDS_UPDATE'
   | 'CARDS_ARCHIVE'
+  | 'CARDS_IMPORT'
+  | 'CARDS_EXPORT'
+  | 'CARDS_IMPORT_CREATE_RELATIONS'
   | 'CATALOG_CREATE'
   | 'CATALOG_UPDATE'
   | 'CATALOG_ARCHIVE'
@@ -68,6 +71,8 @@ const moderatorPermissions = [
   'CARDS_CREATE',
   'CARDS_UPDATE',
   'CARDS_ARCHIVE',
+  'CARDS_IMPORT',
+  'CARDS_EXPORT',
   'CATALOG_CREATE',
   'CATALOG_UPDATE',
   'CATALOG_ARCHIVE',
@@ -88,6 +93,7 @@ const administratorPermissions = [
   'CATALOG_DELETE_PERMANENTLY',
   'CARDS_RESTORE',
   'CARDS_DELETE_PERMANENTLY',
+  'CARDS_IMPORT_CREATE_RELATIONS',
   'BOOSTERS_RESTORE',
   'BOOSTERS_DELETE_PERMANENTLY',
   'AUDIT_LOGS_READ',
@@ -455,6 +461,172 @@ export interface CreateCardInput {
 }
 
 export type UpdateCardInput = Partial<CreateCardInput>;
+
+export type CardImportFormat = 'JSON' | 'CSV';
+export type CardExportFormat = CardImportFormat;
+export type CardImportMode = 'CREATE_ONLY' | 'UPSERT' | 'UPDATE_ONLY';
+export type CardImportConflictBehavior = 'ERROR' | 'SKIP';
+export type CardExportScope = 'ALL' | 'FILTERED' | 'SELECTED';
+export type CardImportRowAction = 'CREATE' | 'UPDATE' | 'SKIP' | 'ERROR';
+export type CardDataOperationType = 'IMPORT' | 'EXPORT';
+export type CardDataOperationStatus =
+  'PREVIEWED' | 'PROCESSING' | 'COMPLETED' | 'FAILED' | 'EXPIRED';
+
+export interface SafirCardRelationReference {
+  slug?: string;
+  name?: string;
+}
+
+export interface SafirCardImportItem {
+  name: string;
+  number: number;
+  attack: number;
+  defense: number;
+  value: number;
+  description?: string | null;
+  imageUrl?: string | null;
+  isCommander: boolean;
+  rarity: SafirCardRelationReference;
+  season: SafirCardRelationReference;
+  types: SafirCardRelationReference[];
+  isActive?: boolean;
+  metadata?: Record<string, unknown>;
+  _technical?: {
+    id?: string;
+    rarityId?: string;
+    seasonId?: string;
+  };
+}
+
+export interface SafirCardExportItem extends Required<Omit<SafirCardImportItem, '_technical'>> {
+  _technical?: {
+    id: string;
+    rarityId: string;
+    seasonId: string;
+  };
+}
+
+export interface SafirCardExportFile {
+  format: 'safir-cards';
+  version: 1;
+  exportedAt: string;
+  cards: SafirCardExportItem[];
+}
+
+export interface CardImportOptions {
+  format: CardImportFormat;
+  mode: CardImportMode;
+  conflictBehavior: CardImportConflictBehavior;
+  createMissingRelations: boolean;
+}
+
+export interface CardExportFilters {
+  search?: string;
+  seasonId?: string;
+  rarityId?: string;
+  typeId?: string;
+  isCommander?: boolean;
+  status?: 'active' | 'inactive' | 'all';
+  archived?: 'active' | 'archived' | 'all';
+}
+
+export interface CardExportOptions {
+  format: CardExportFormat;
+  scope: CardExportScope;
+  includeArchived: boolean;
+  includeTechnicalMetadata: boolean;
+  filters?: CardExportFilters;
+  selectedCardIds?: string[];
+}
+
+export interface CardImportError {
+  row: number;
+  cardName?: string;
+  field: string;
+  value?: unknown;
+  code: string;
+  message: string;
+}
+
+export interface CardImportPreviewRow {
+  row: number;
+  name: string;
+  action: CardImportRowAction;
+  existingCardId?: string;
+  errors: CardImportError[];
+  warnings: string[];
+}
+
+export interface CardImportMissingRelation {
+  slug: string;
+  name: string;
+  rows: number[];
+}
+
+export interface CardImportPreviewSummary {
+  totalRows: number;
+  validRows: number;
+  createCount: number;
+  updateCount: number;
+  skippedCount: number;
+  errorCount: number;
+}
+
+export interface CardImportPreview {
+  importPreviewId: string;
+  fileHash: string;
+  fileName: string;
+  format: CardImportFormat;
+  mode: CardImportMode;
+  expiresAt: string;
+  canExecute: boolean;
+  summary: CardImportPreviewSummary;
+  rows: CardImportPreviewRow[];
+  errors: CardImportError[];
+  warnings: string[];
+  missingRelations: {
+    rarities: CardImportMissingRelation[];
+    seasons: CardImportMissingRelation[];
+    types: CardImportMissingRelation[];
+  };
+}
+
+export interface CardImportExecutionResult {
+  operationId: string;
+  status: 'COMPLETED';
+  summary: CardImportPreviewSummary;
+  importedCardIds: string[];
+  createdRelations: {
+    rarities: number;
+    seasons: number;
+    types: number;
+  };
+  completedAt: string;
+}
+
+export interface CardDataOperation {
+  id: string;
+  operationType: CardDataOperationType;
+  fileFormat: CardImportFormat;
+  importMode: CardImportMode | null;
+  fileName: string | null;
+  fileHash: string | null;
+  totalRows: number;
+  createdCount: number;
+  updatedCount: number;
+  skippedCount: number;
+  errorCount: number;
+  filters: Record<string, unknown>;
+  status: CardDataOperationStatus;
+  expiresAt: string | null;
+  completedAt: string | null;
+  createdAt: string;
+}
+
+export interface CardExportEstimate {
+  count: number;
+  limit: number;
+}
 
 export interface CreateRarityInput {
   name: string;

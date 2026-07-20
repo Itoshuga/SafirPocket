@@ -121,6 +121,12 @@ Une carte référence exactement une rareté et une saison, et au moins un type 
 
 Les suppressions usuelles sont logiques. Une suppression définitive est réservée à `ADMINISTRATOR` et refusée tant que des cartes, variantes ou liens utilisent la ressource.
 
+La page `/admin/cards` expose aussi Importer et Exporter selon `CARDS_IMPORT` et `CARDS_EXPORT`.
+L'import passe obligatoirement par un aperçu serveur temporaire puis une transaction atomique; la
+création de relations absentes exige `CARDS_IMPORT_CREATE_RELATIONS`. L'export applique recherche,
+saison, rareté, type, commandant, statut et archivage dans PostgreSQL, puis produit un flux JSON ou
+CSV. Voir `docs/cards.md` pour les formats, endpoints, erreurs, limites et règles de sécurité.
+
 ## Conversion des données existantes
 
 La migration `20260717200000_identity_moderation_admin_catalog.sql` :

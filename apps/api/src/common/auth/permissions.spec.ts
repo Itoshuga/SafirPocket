@@ -33,4 +33,11 @@ describe('role permission matrix', () => {
     expect(hasPermission('ADMINISTRATOR', 'USERS_SET_TEMPORARY_PASSWORD')).toBe(true);
     expect(hasPermission('ADMINISTRATOR', 'USERS_DELETE')).toBe(true);
   });
+
+  it('allows card data exchange but reserves automatic relation creation', () => {
+    expect(hasPermission('MODERATOR', 'CARDS_IMPORT')).toBe(true);
+    expect(hasPermission('MODERATOR', 'CARDS_EXPORT')).toBe(true);
+    expect(hasPermission('MODERATOR', 'CARDS_IMPORT_CREATE_RELATIONS')).toBe(false);
+    expect(hasPermission('ADMINISTRATOR', 'CARDS_IMPORT_CREATE_RELATIONS')).toBe(true);
+  });
 });

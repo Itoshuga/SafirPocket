@@ -15,6 +15,9 @@ import {
   accountDeletionRequestSchema,
   accountPasswordUpdateSchema,
   createBoosterSchema,
+  cardExportOptionsSchema,
+  cardImportPreviewOptionsSchema,
+  safirCardImportItemSchema,
 } from './index.js';
 
 describe('shared validation', () => {
@@ -73,6 +76,42 @@ describe('shared validation', () => {
       isActive: true,
     });
     expect(result.success).toBe(false);
+  });
+
+  it('reuses card constraints for imported cards', () => {
+    const imported = {
+      name: 'Carte importée',
+      number: -1,
+      attack: 'inconnue',
+      defense: 1,
+      value: 1,
+      imageUrl: 'http://example.com/card.png',
+      isCommander: false,
+      rarity: { slug: 'rare' },
+      season: { slug: 'origines' },
+      types: [{ slug: 'creature' }, { slug: 'creature' }],
+      metadata: [],
+    };
+    expect(safirCardImportItemSchema.safeParse(imported).success).toBe(false);
+  });
+
+  it('rejects invalid import modes and incomplete selected exports', () => {
+    expect(
+      cardImportPreviewOptionsSchema.safeParse({
+        format: 'JSON',
+        mode: 'REPLACE_ALL',
+        conflictBehavior: 'ERROR',
+        createMissingRelations: false,
+      }).success,
+    ).toBe(false);
+    expect(
+      cardExportOptionsSchema.safeParse({
+        format: 'CSV',
+        scope: 'SELECTED',
+        includeArchived: false,
+        includeTechnicalMetadata: false,
+      }).success,
+    ).toBe(false);
   });
 
   it('normalizes empty optional season fields and rejects reversed dates', () => {

@@ -21,6 +21,10 @@ export const apiEnvironmentSchema = z.object({
   DIRECT_URL: z.string().min(1),
   REDIS_URL: z.url().default('redis://localhost:6379'),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
+  CARD_IMPORT_MAX_FILE_BYTES: z.coerce.number().int().min(1024).max(20_000_000).default(5_242_880),
+  CARD_IMPORT_MAX_ROWS: z.coerce.number().int().min(1).max(20_000).default(5_000),
+  CARD_IMPORT_PREVIEW_TTL_SECONDS: z.coerce.number().int().min(60).max(3_600).default(900),
+  CARD_EXPORT_MAX_ROWS: z.coerce.number().int().min(1).max(100_000).default(50_000),
 });
 
 export type ApiEnvironment = z.infer<typeof apiEnvironmentSchema>;

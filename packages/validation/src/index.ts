@@ -306,6 +306,7 @@ export const adminCardsQuerySchema = paginationSchema.extend({
     .transform((value) => value === 'true')
     .optional(),
   archived: z.enum(['active', 'archived', 'all']).default('active'),
+  status: z.enum(['active', 'inactive', 'all']).default('all'),
   sort: z.enum(['number', '-number', 'name', '-name', 'updatedAt', '-updatedAt']).default('number'),
 });
 
@@ -343,6 +344,142 @@ export const createCardSchema = cardInputSchema.superRefine(({ typeIds }, contex
 export const updateCardSchema = cardInputSchema
   .partial()
   .superRefine(({ typeIds }, context) => rejectDuplicateTypes(typeIds, context));
+
+export const cardImportFormatSchema = z.enum(['JSON', 'CSV']);
+export const cardImportModeSchema = z.enum(['CREATE_ONLY', 'UPSERT', 'UPDATE_ONLY']);
+export const cardImportConflictBehaviorSchema = z.enum(['ERROR', 'SKIP']);
+export const cardExportScopeSchema = z.enum(['ALL', 'FILTERED', 'SELECTED']);
+
+const importBooleanSchema = z.preprocess((value) => {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'string') {
+    if (value.trim().toLowerCase() === 'true') return true;
+    if (value.trim().toLowerCase() === 'false') return false;
+  }
+  return value;
+}, z.boolean());
+
+const importIntegerSchema = z.coerce.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
+const importRelationSchema = z
+  .object({
+    slug: slugSchema.optional(),
+    name: z.string().trim().min(1).max(100).optional(),
+  })
+  .strict()
+  .refine(({ slug, name }) => Boolean(slug || name), {
+    message: 'Indiquez un slug ou un nom de relation.',
+  });
+
+const cardMetadataSchema = z
+  .record(z.string().max(100), z.unknown())
+  .default({})
+  .superRefine((metadata, context) => {
+    if (JSON.stringify(metadata).length > 10_000) {
+      context.addIssue({ code: 'custom', message: 'Les métadonnées dépassent 10 000 caractères.' });
+    }
+  });
+
+export const safirCardImportItemSchema = cardInputSchema
+  .omit({ rarityId: true, seasonId: true, typeIds: true, isCommander: true, isActive: true })
+  .extend({
+    number: importIntegerSchema,
+    attack: importIntegerSchema,
+    defense: importIntegerSchema,
+    value: importIntegerSchema,
+    isCommander: importBooleanSchema,
+    rarity: importRelationSchema,
+    season: importRelationSchema,
+    types: z.array(importRelationSchema).min(1).max(20),
+    isActive: importBooleanSchema.default(true),
+    metadata: cardMetadataSchema,
+    _technical: z
+      .object({
+        id: idSchema.optional(),
+        rarityId: idSchema.optional(),
+        seasonId: idSchema.optional(),
+      })
+      .strict()
+      .optional(),
+  })
+  .strict()
+  .superRefine(({ types }, context) => {
+    const identities = types.map(({ slug, name }) =>
+      slug ? `slug:${slug}` : `name:${name!.trim().toLocaleLowerCase('fr')}`,
+    );
+    if (new Set(identities).size !== identities.length) {
+      context.addIssue({
+        code: 'custom',
+        path: ['types'],
+        message: 'Un type est présent plusieurs fois.',
+      });
+    }
+  });
+
+export const safirCardsFileSchema = z
+  .object({
+    format: z.literal('safir-cards'),
+    version: z.literal(1),
+    exportedAt: z.iso.datetime().optional(),
+    cards: z.array(z.unknown()),
+  })
+  .strict();
+
+export const cardImportPreviewOptionsSchema = z
+  .object({
+    format: cardImportFormatSchema,
+    mode: cardImportModeSchema,
+    conflictBehavior: cardImportConflictBehaviorSchema.default('ERROR'),
+    createMissingRelations: importBooleanSchema.default(false),
+  })
+  .strict();
+
+export const cardImportExecuteSchema = z
+  .object({
+    importPreviewId: idSchema,
+    fileHash: z.string().regex(/^[a-f0-9]{64}$/),
+  })
+  .strict();
+
+export const cardExportFiltersSchema = z
+  .object({
+    search: z.string().trim().max(100).optional(),
+    seasonId: idSchema.optional(),
+    rarityId: idSchema.optional(),
+    typeId: idSchema.optional(),
+    isCommander: z.boolean().optional(),
+    status: z.enum(['active', 'inactive', 'all']).default('all'),
+    archived: z.enum(['active', 'archived', 'all']).default('active'),
+  })
+  .strict();
+
+export const cardExportOptionsSchema = z
+  .object({
+    format: cardImportFormatSchema,
+    scope: cardExportScopeSchema,
+    includeArchived: z.boolean().default(false),
+    includeTechnicalMetadata: z.boolean().default(false),
+    filters: cardExportFiltersSchema.optional(),
+    selectedCardIds: z.array(idSchema).min(1).max(5_000).optional(),
+  })
+  .strict()
+  .superRefine(({ scope, filters, selectedCardIds }, context) => {
+    if (scope === 'FILTERED' && !filters) {
+      context.addIssue({ code: 'custom', path: ['filters'], message: 'Les filtres sont requis.' });
+    }
+    if (scope === 'SELECTED' && !selectedCardIds?.length) {
+      context.addIssue({
+        code: 'custom',
+        path: ['selectedCardIds'],
+        message: 'Sélectionnez au moins une carte.',
+      });
+    }
+  });
+
+export const cardDataOperationsQuerySchema = paginationSchema.extend({
+  pageSize: z.coerce.number().int().min(1).max(100).default(25),
+  operationType: z.enum(['IMPORT', 'EXPORT']).optional(),
+  status: z.enum(['PREVIEWED', 'PROCESSING', 'COMPLETED', 'FAILED', 'EXPIRED']).optional(),
+});
 
 const taxonomyBaseSchema = z
   .object({
@@ -588,6 +725,11 @@ export type AdminCardsQuery = z.infer<typeof adminCardsQuerySchema>;
 export type CreateCardInput = z.infer<typeof createCardSchema>;
 export type CreateCardFormInput = z.input<typeof createCardSchema>;
 export type UpdateCardInput = z.infer<typeof updateCardSchema>;
+export type SafirCardImportItemInput = z.infer<typeof safirCardImportItemSchema>;
+export type CardImportPreviewOptions = z.infer<typeof cardImportPreviewOptionsSchema>;
+export type CardImportExecuteInput = z.infer<typeof cardImportExecuteSchema>;
+export type CardExportOptionsInput = z.infer<typeof cardExportOptionsSchema>;
+export type CardDataOperationsQuery = z.infer<typeof cardDataOperationsQuerySchema>;
 export type CreateRarityInput = z.infer<typeof createRaritySchema>;
 export type UpdateRarityInput = z.infer<typeof updateRaritySchema>;
 export type CreateSeasonInput = z.infer<typeof createSeasonSchema>;

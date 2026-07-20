@@ -1,6 +1,12 @@
 'use client';
 
-import type { AdminCard, CardFacets, PaginatedResponse } from '@safir/shared-types';
+import {
+  hasPermission,
+  type AdminCard,
+  type CardExportFilters,
+  type CardFacets,
+  type PaginatedResponse,
+} from '@safir/shared-types';
 import {
   Badge,
   Button,
@@ -15,13 +21,15 @@ import {
   Table,
 } from '@safir/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Archive, Pencil, Plus, RotateCcw, Trash2 } from 'lucide-react';
+import { Archive, Download, Pencil, Plus, RotateCcw, Trash2, Upload } from 'lucide-react';
 import Link from 'next/link';
 import { useDeferredValue, useState } from 'react';
 import { apiFetch } from '@/lib/api-client';
 import { queryKeys } from '@/lib/query-keys';
 import { useAppStore } from '@/stores/app-store';
 import { useAuth } from './auth-provider';
+import { AdminCardExportDialog } from './admin-card-export-dialog';
+import { AdminCardImportDialog } from './admin-card-import-dialog';
 import { CardImage } from './card-image';
 
 type CardAction = 'archive' | 'restore' | 'delete';
@@ -35,7 +43,11 @@ export function AdminCardsView() {
   const [seasonId, setSeasonId] = useState('');
   const [rarityId, setRarityId] = useState('');
   const [typeId, setTypeId] = useState('');
+  const [commander, setCommander] = useState('all');
+  const [status, setStatus] = useState('all');
   const [archived, setArchived] = useState('active');
+  const [importOpen, setImportOpen] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
   const [page, setPage] = useState(1);
   const [pending, setPending] = useState<{ card: AdminCard; action: CardAction } | null>(null);
   const params = new URLSearchParams({ page: String(page), pageSize: '25', archived });
@@ -43,7 +55,21 @@ export function AdminCardsView() {
   if (seasonId) params.set('seasonId', seasonId);
   if (rarityId) params.set('rarityId', rarityId);
   if (typeId) params.set('typeId', typeId);
+  if (commander !== 'all') params.set('isCommander', commander);
+  if (status !== 'all') params.set('status', status);
   const filters = params.toString();
+  const exportFilters: CardExportFilters = {
+    ...(deferredSearch ? { search: deferredSearch } : {}),
+    ...(seasonId ? { seasonId } : {}),
+    ...(rarityId ? { rarityId } : {}),
+    ...(typeId ? { typeId } : {}),
+    ...(commander !== 'all' ? { isCommander: commander === 'true' } : {}),
+    status: status as CardExportFilters['status'],
+    archived: archived as CardExportFilters['archived'],
+  };
+  const canImport = hasPermission(role, 'CARDS_IMPORT');
+  const canExport = hasPermission(role, 'CARDS_EXPORT');
+  const canCreate = hasPermission(role, 'CARDS_CREATE');
   const cards = useQuery({
     queryKey: queryKeys.adminCards(filters),
     queryFn: () => apiFetch<PaginatedResponse<AdminCard>>(`/api/v1/admin/cards?${filters}`),
@@ -64,7 +90,7 @@ export function AdminCardsView() {
       notify('Carte mise à jour et action journalisée.', 'success');
       setPending(null);
       await Promise.all([
-        client.invalidateQueries({ queryKey: ['admin', 'cards'] }),
+        client.invalidateQueries({ queryKey: queryKeys.adminCardsRoot }),
         client.invalidateQueries({ queryKey: queryKeys.adminOverview }),
         client.invalidateQueries({ queryKey: queryKeys.cards('') }),
       ]);
@@ -86,14 +112,30 @@ export function AdminCardsView() {
           aria-label="Rechercher une carte"
           className="sm:w-80"
         />
-        <Button asChild>
-          <Link href="/admin/cards/new">
-            <Plus className="size-4" />
-            Ajouter une carte
-          </Link>
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          {canImport ? (
+            <Button variant="secondary" onClick={() => setImportOpen(true)}>
+              <Upload className="size-4" />
+              Importer
+            </Button>
+          ) : null}
+          {canExport ? (
+            <Button variant="secondary" onClick={() => setExportOpen(true)}>
+              <Download className="size-4" />
+              Exporter
+            </Button>
+          ) : null}
+          {canCreate ? (
+            <Button asChild>
+              <Link href="/admin/cards/new">
+                <Plus className="size-4" />
+                Ajouter une carte
+              </Link>
+            </Button>
+          ) : null}
+        </div>
       </div>
-      <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         <Select
           value={seasonId}
           onChange={(event) => {
@@ -108,6 +150,30 @@ export function AdminCardsView() {
               {item.name}
             </option>
           ))}
+        </Select>
+        <Select
+          value={commander}
+          onChange={(event) => {
+            setCommander(event.target.value);
+            setPage(1);
+          }}
+          aria-label="Filtrer par commandant"
+        >
+          <option value="all">Toutes les cartes</option>
+          <option value="true">Commandants</option>
+          <option value="false">Non-commandants</option>
+        </Select>
+        <Select
+          value={status}
+          onChange={(event) => {
+            setStatus(event.target.value);
+            setPage(1);
+          }}
+          aria-label="Filtrer par statut"
+        >
+          <option value="all">Tous les statuts</option>
+          <option value="active">Actives</option>
+          <option value="inactive">Inactives</option>
         </Select>
         <Select
           value={rarityId}
@@ -315,6 +381,31 @@ export function AdminCardsView() {
           if (pending) mutate.mutate(pending);
         }}
       />
+      {canImport ? (
+        <AdminCardImportDialog
+          open={importOpen}
+          onOpenChange={setImportOpen}
+          canCreateRelations={hasPermission(role, 'CARDS_IMPORT_CREATE_RELATIONS')}
+          onImported={async () => {
+            await Promise.all([
+              client.invalidateQueries({ queryKey: queryKeys.adminCardsRoot }),
+              client.invalidateQueries({ queryKey: queryKeys.adminOverview }),
+              client.invalidateQueries({ queryKey: queryKeys.cards('') }),
+              client.invalidateQueries({ queryKey: queryKeys.cardFacets }),
+              client.invalidateQueries({ queryKey: queryKeys.adminRaritiesRoot }),
+              client.invalidateQueries({ queryKey: queryKeys.adminSeasonsRoot }),
+              client.invalidateQueries({ queryKey: queryKeys.adminCardTypesRoot }),
+            ]);
+          }}
+        />
+      ) : null}
+      {canExport ? (
+        <AdminCardExportDialog
+          open={exportOpen}
+          onOpenChange={setExportOpen}
+          filters={exportFilters}
+        />
+      ) : null}
     </div>
   );
 }

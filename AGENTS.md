@@ -41,6 +41,9 @@ Lire avant toute modification : `README.md`, `docs/security.md`, `supabase/migra
     ne pas accorder leurs mutations directement au client par RLS.
 23. La suppression utilisateur suit la période de grâce et la stratégie d'anonymisation de
     `docs/personal-space.md`; Supabase Auth est supprimé en dernier.
+24. Les imports de cartes passent toujours par un aperçu serveur lié à l'acteur et une transaction
+    atomique. Les exports sont filtrés et paginés côté API; ne jamais parser un CSV par découpage
+    manuel ni générer l'export complet depuis la page courante.
 
 ## Chaîne de changement
 

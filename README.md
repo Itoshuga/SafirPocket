@@ -236,6 +236,10 @@ Voir [docs/security.md](docs/security.md), [docs/administration.md](docs/adminis
 Le modèle complet des boosters, l’idempotence, les variantes et les endpoints sont détaillés dans
 [docs/boosters.md](docs/boosters.md).
 
+L'administration des cartes prend en charge l'import JSON/CSV en deux étapes, l'export filtré en
+streaming, les modèles téléchargeables et l'historique audité. Les formats, colonnes, alias, modes,
+limites et garanties transactionnelles sont documentés dans [docs/cards.md](docs/cards.md).
+
 ## Qualité et tests
 
 Après une première installation, téléchargez Chromium une fois pour Playwright :

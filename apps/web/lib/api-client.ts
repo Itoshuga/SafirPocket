@@ -15,9 +15,10 @@ export class ApiClientError extends Error {
   }
 }
 
-export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
+async function apiHeaders(init: RequestInit): Promise<Headers> {
   const headers = new Headers(init.headers);
-  if (init.body) headers.set('content-type', 'application/json');
+  if (init.body && !(init.body instanceof FormData))
+    headers.set('content-type', 'application/json');
   try {
     const { data } = await getSupabaseBrowserClient().auth.getSession();
     if (data.session?.access_token)
@@ -25,6 +26,11 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
   } catch {
     // Public calls work without Supabase; protected calls receive a normalized 401 from the API.
   }
+  return headers;
+}
+
+async function apiRequest(path: string, init: RequestInit): Promise<Response> {
+  const headers = await apiHeaders(init);
   let response: Response;
   try {
     response = await fetch(`${getBrowserApiUrl()}${path}`, { ...init, headers });
@@ -46,5 +52,24 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
       error?.requestId,
     );
   }
+  return response;
+}
+
+export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const response = await apiRequest(path, init);
   return (await response.json()) as T;
+}
+
+export async function apiDownload(
+  path: string,
+  init: RequestInit = {},
+): Promise<{ blob: Blob; fileName: string }> {
+  const response = await apiRequest(path, init);
+  const disposition = response.headers.get('content-disposition') ?? '';
+  const encoded = disposition.match(/filename\*=UTF-8''([^;]+)/i)?.[1];
+  const simple = disposition.match(/filename="?([^";]+)"?/i)?.[1];
+  return {
+    blob: await response.blob(),
+    fileName: encoded ? decodeURIComponent(encoded) : (simple ?? 'safir-cards'),
+  };
 }
