@@ -1,4 +1,38 @@
-# Cartes : import et export administratifs
+# Cartes
+
+## Catalogue public et collection
+
+`/cards` et `/collection` utilisent la même structure de consultation : résumé serveur, barre de
+recherche, filtres, tri, choix grille/liste, cartes, skeletons, états vides et pagination. Le
+catalogue reste public et ne retourne que les cartes publiées, actives et non archivées. La
+collection exige une session et retourne uniquement les variantes réellement possédées, avec les
+quantités et quantités réservées.
+
+Les deux listes sont paginées et filtrées côté API. Les paramètres communs sont :
+
+```text
+page
+pageSize
+search
+season
+rarity
+type
+isCommander
+sort
+```
+
+L'URL des pages utilise `commander=true|false`, ensuite traduit en `isCommander` pour l'API. Le
+paramètre historique `set` reste accepté comme alias de `season`, mais les nouvelles navigations
+écrivent uniquement `season`. Les tris du catalogue sont `number`, `-number`, `name`, `-name`,
+`rarity`, `season` et `-createdAt`. La collection ajoute `recent` et `-quantity`, sans exposer ces
+tris personnels dans le catalogue.
+
+Les clés TanStack Query du catalogue et de la collection appartiennent à deux familles distinctes.
+Le changement de filtre conserve temporairement la page précédente pendant le chargement et ne
+déclenche aucune requête par carte. Les totaux affichés viennent de la pagination et des facettes
+API, jamais du nombre d'éléments visibles dans le navigateur.
+
+## Import et export administratifs
 
 La page `/admin/cards` permet d'importer et d'exporter le catalogue réel en JSON ou CSV. Les deux
 opérations passent exclusivement par l'API NestJS et exigent un JWT Supabase, un profil actif et

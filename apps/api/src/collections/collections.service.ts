@@ -9,6 +9,7 @@ export class CollectionsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async list(userId: string, filters: CollectionFilters) {
+    const season = filters.season ?? filters.set;
     const where: Prisma.UserCardWhereInput = {
       userId,
       cardVariant: {
@@ -17,19 +18,43 @@ export class CollectionsService {
           isActive: true,
           deletedAt: null,
           ...(filters.search
-            ? { name: { contains: filters.search, mode: 'insensitive' as const } }
+            ? {
+                OR: [
+                  { name: { contains: filters.search, mode: 'insensitive' as const } },
+                  { description: { contains: filters.search, mode: 'insensitive' as const } },
+                  { effectText: { contains: filters.search, mode: 'insensitive' as const } },
+                ],
+              }
             : {}),
-          ...(filters.set ? { season: { slug: filters.set } } : {}),
+          ...(season ? { season: { slug: season } } : {}),
           ...(filters.rarity ? { rarity: { slug: filters.rarity } } : {}),
+          ...(filters.type ? { typeLinks: { some: { type: { slug: filters.type } } } } : {}),
+          ...(filters.isCommander === undefined ? {} : { isCommander: filters.isCommander }),
         },
       },
     };
-    const orderBy: Prisma.UserCardOrderByWithRelationInput =
+    const orderBy: Prisma.UserCardOrderByWithRelationInput[] =
       filters.sort === 'name'
-        ? { cardVariant: { card: { name: 'asc' } } }
-        : filters.sort === '-quantity'
-          ? { quantity: 'desc' }
-          : { lastObtainedAt: 'desc' };
+        ? [{ cardVariant: { card: { name: 'asc' } } }, { lastObtainedAt: 'desc' }]
+        : filters.sort === '-name'
+          ? [{ cardVariant: { card: { name: 'desc' } } }, { lastObtainedAt: 'desc' }]
+          : filters.sort === 'number'
+            ? [{ cardVariant: { card: { number: 'asc' } } }, { lastObtainedAt: 'desc' }]
+            : filters.sort === '-number'
+              ? [{ cardVariant: { card: { number: 'desc' } } }, { lastObtainedAt: 'desc' }]
+              : filters.sort === 'rarity'
+                ? [
+                    { cardVariant: { card: { rarity: { sortOrder: 'asc' } } } },
+                    { lastObtainedAt: 'desc' },
+                  ]
+                : filters.sort === 'season'
+                  ? [
+                      { cardVariant: { card: { season: { sortOrder: 'asc' } } } },
+                      { lastObtainedAt: 'desc' },
+                    ]
+                  : filters.sort === '-quantity'
+                    ? [{ quantity: 'desc' }, { lastObtainedAt: 'desc' }]
+                    : [{ lastObtainedAt: 'desc' }];
     const [rows, total] = await this.prisma.$transaction([
       this.prisma.userCard.findMany({
         where,

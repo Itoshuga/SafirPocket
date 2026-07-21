@@ -91,23 +91,31 @@ export class CardsService {
         ],
       });
     }
-    if (filters.set) {
-      conditions.push({ OR: [{ season: { slug: filters.set } }, { set: { slug: filters.set } }] });
+    const season = filters.season ?? filters.set;
+    if (season) {
+      conditions.push({ season: { slug: season } });
     }
     const where: Prisma.CardWhereInput = {
       ...publicCardWhere,
       AND: conditions,
       ...(filters.rarity ? { rarity: { slug: filters.rarity } } : {}),
       ...(filters.type ? { typeLinks: { some: { type: { slug: filters.type } } } } : {}),
+      ...(filters.isCommander === undefined ? {} : { isCommander: filters.isCommander }),
     };
-    const orderBy: Prisma.CardOrderByWithRelationInput =
+    const orderBy: Prisma.CardOrderByWithRelationInput[] =
       filters.sort === 'name'
-        ? { name: 'asc' }
+        ? [{ name: 'asc' }, { number: 'asc' }]
         : filters.sort === '-name'
-          ? { name: 'desc' }
-          : filters.sort === '-createdAt'
-            ? { createdAt: 'desc' }
-            : { number: 'asc' };
+          ? [{ name: 'desc' }, { number: 'asc' }]
+          : filters.sort === '-number'
+            ? [{ number: 'desc' }, { name: 'asc' }]
+            : filters.sort === 'rarity'
+              ? [{ rarity: { sortOrder: 'asc' } }, { number: 'asc' }]
+              : filters.sort === 'season'
+                ? [{ season: { sortOrder: 'asc' } }, { number: 'asc' }]
+                : filters.sort === '-createdAt'
+                  ? [{ createdAt: 'desc' }, { number: 'asc' }]
+                  : [{ number: 'asc' }, { name: 'asc' }];
     const [cards, total] = await this.prisma.$transaction([
       this.prisma.card.findMany({
         where,

@@ -203,6 +203,8 @@ administrateurs. Il n'existe aucune navigation horizontale propre aux layouts ad
 Les endpoints ajoutés pour la refonte sont notamment :
 
 - `GET /api/v1/card-facets` pour les filtres du catalogue ;
+- `GET /api/v1/cards` pour le catalogue public paginé, avec recherche, saison, rareté, type,
+  Commandant et tri serveur ;
 - `GET /api/v1/me/collection` paginé et filtrable, plus `/summary` et `/card/:cardId` ;
 - `GET /api/v1/me/profile/summary` pour le tableau de bord et le profil ;
 - `GET /api/v1/rankings` et `GET /api/v1/me/ranking` ;

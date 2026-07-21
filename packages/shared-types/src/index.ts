@@ -417,6 +417,40 @@ export interface CardSummary extends Card {
   set?: Pick<CardSetSummary, 'id' | 'name' | 'slug' | 'code'>;
 }
 
+export type CardsPageMode = 'CATALOG' | 'COLLECTION';
+export type CatalogCardsSort =
+  'number' | '-number' | 'name' | '-name' | 'rarity' | 'season' | '-createdAt';
+export type CollectionCardsSort =
+  'recent' | 'number' | '-number' | 'name' | '-name' | 'rarity' | 'season' | '-quantity';
+export type CardsSort = CatalogCardsSort | CollectionCardsSort;
+
+export interface CardsListFilters extends PaginationQuery {
+  search?: string;
+  season?: string;
+  rarity?: string;
+  type?: string;
+  isCommander?: boolean;
+  sort?: CardsSort;
+}
+
+export type CardListItem = CardSummary;
+export type PaginatedCardsResponse = PaginatedResponse<CardListItem>;
+
+export interface CardOwnershipSummary {
+  owned: boolean;
+  quantity: number;
+  lockedQuantity: number;
+  firstObtainedAt: string;
+  lastObtainedAt: string;
+}
+
+export interface CardsSummary {
+  totalCards: number;
+  filteredCards: number;
+  seasonCount: number;
+  rarityCount: number;
+}
+
 export interface CardDetail extends CardSummary {
   effectText: string | null;
   stats: Record<string, unknown>;

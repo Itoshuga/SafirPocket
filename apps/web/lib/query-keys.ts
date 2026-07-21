@@ -1,12 +1,14 @@
 const collectionRoot = ['collection'] as const;
+const cardsRoot = ['cards'] as const;
 
 export const queryKeys = {
-  cards: (filters: string) => ['cards', filters] as const,
+  cardsRoot,
+  cards: (filters: string) => [...cardsRoot, 'list', filters] as const,
   card: (id: string) => ['card', id] as const,
   cardFacets: ['card-facets'] as const,
   collections: collectionRoot,
-  collection: (filters: string) => [...collectionRoot, filters] as const,
-  collectionSummary: ['collection-summary'] as const,
+  collection: (filters: string) => [...collectionRoot, 'list', filters] as const,
+  collectionSummary: [...collectionRoot, 'summary'] as const,
   cardCollectionContext: (id: string) => ['card-collection-context', id] as const,
   decks: ['decks'] as const,
   deck: (id: string) => ['deck', id] as const,

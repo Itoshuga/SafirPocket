@@ -48,6 +48,15 @@ const card = {
     code: 'ORI',
   },
 };
+const secondCard = {
+  ...card,
+  id: '66666666-6666-4666-8666-666666666666',
+  name: 'Éclaireuse indépendante',
+  slug: 'eclaireuse-independante',
+  number: 2,
+  collectionNumber: '002',
+  isCommander: true,
+};
 
 test.beforeEach(async ({ page }) => {
   await page.route('**/api/v1/**', async (route) => {
@@ -112,8 +121,12 @@ test.beforeEach(async ({ page }) => {
       return;
     }
     if (url.pathname.endsWith('/cards')) {
+      const page = Number(url.searchParams.get('page') ?? '1');
       await route.fulfill({
-        json: { data: [card], pagination: { page: 1, pageSize: 36, total: 1, pageCount: 1 } },
+        json: {
+          data: page === 2 ? [secondCard] : [card],
+          pagination: { page, pageSize: 30, total: 2, pageCount: 2 },
+        },
       });
       return;
     }
@@ -126,7 +139,10 @@ test.beforeEach(async ({ page }) => {
 
 test('catalog filters are URL-backed and card detail is reachable', async ({ page }) => {
   await page.goto('/cards');
+  await expect(page.getByRole('heading', { level: 1, name: 'Toutes les cartes' })).toBeVisible();
   await expect(page.getByText('Sentinelle de Safir')).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Voir ma collection' })).toHaveCount(0);
+  await expect(page.getByTestId('cards-toolbar')).toBeVisible();
   const filterButton = page.getByRole('button', { name: /Filtres/ });
   const mobileFilters = await filterButton.isVisible();
   if (mobileFilters) await filterButton.click();
@@ -134,14 +150,40 @@ test('catalog filters are URL-backed and card detail is reachable', async ({ pag
     ? page.getByRole('dialog').getByLabel('Saison')
     : page.getByLabel('Saison');
   await season.selectOption('origines');
-  await expect(page).toHaveURL(/set=origines/);
+  await expect(page).toHaveURL(/season=origines/);
+  const type = mobileFilters
+    ? page.getByRole('dialog').getByLabel('Type')
+    : page.getByLabel('Type');
+  await type.selectOption('allie');
+  await expect(page).toHaveURL(/type=allie/);
+  const commander = mobileFilters
+    ? page.getByRole('dialog').getByLabel('Commandant')
+    : page.getByLabel('Commandant');
+  await commander.selectOption('true');
+  await expect(page).toHaveURL(/commander=true/);
   if (mobileFilters) await page.getByRole('dialog').getByRole('button', { name: 'Fermer' }).click();
+  await page.getByLabel('Trier les cartes').selectOption('season');
+  await expect(page).toHaveURL(/sort=season/);
   await page
     .getByRole('link', { name: /Sentinelle de Safir/ })
     .first()
     .click();
   await expect(page.getByRole('heading', { level: 1, name: 'Sentinelle de Safir' })).toBeVisible();
   await expect(page.getByText('Piochez une carte.')).toBeVisible();
+});
+
+test('catalog search, pagination and list view stay URL-backed', async ({ page }) => {
+  await page.goto('/cards');
+  await page.getByLabel('Rechercher dans les cartes').fill('éclaireuse');
+  await expect(page).toHaveURL(/search=%C3%A9claireuse/);
+  await page.getByRole('button', { name: 'Affichage en liste' }).click();
+  await expect(page.getByRole('button', { name: 'Affichage en liste' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  await page.getByRole('button', { name: 'Suivant' }).click();
+  await expect(page).toHaveURL(/page=2/);
+  await expect(page.getByText('Éclaireuse indépendante')).toBeVisible();
 });
 
 test('catalog remains usable on a narrow viewport', async ({ page }) => {

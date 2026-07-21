@@ -6,61 +6,24 @@ import type {
   CollectionSummary,
   PaginatedResponse,
 } from '@safir/shared-types';
-import {
-  Button,
-  EmptyState,
-  ErrorState,
-  Panel,
-  Pagination,
-  Progress,
-  SearchInput,
-  Select,
-  Skeleton,
-  StatCard,
-  cn,
-} from '@safir/ui';
+import { Button, Panel, Progress, Skeleton, cn } from '@safir/ui';
 import { useQuery } from '@tanstack/react-query';
-import { Grid3X3, List, PackageOpen } from 'lucide-react';
 import Link from 'next/link';
-import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { useDeferredValue, useEffect, useState } from 'react';
+import { useState } from 'react';
+import { collectionSortOptions, type CardsLayout } from '@/lib/cards-page';
 import { apiFetch } from '@/lib/api-client';
 import { queryKeys } from '@/lib/query-keys';
+import { CardsGallery, CardsStats, CardsToolbar, useCardsPageFilters } from './cards-browser';
 import { TcgCard } from './tcg-card';
 
 export function CollectionView() {
-  const router = useRouter();
-  const pathname = usePathname();
-  const params = useSearchParams();
-  const [search, setSearch] = useState(params.get('search') ?? '');
-  const deferredSearch = useDeferredValue(search);
-  const [layout, setLayout] = useState<'grid' | 'list'>('grid');
-  const page = Number(params.get('page') ?? '1');
-  const set = params.get('set') ?? '';
-  const rarity = params.get('rarity') ?? '';
-  const sort = params.get('sort') ?? 'recent';
-  function update(values: Record<string, string | number | null>) {
-    const next = new URLSearchParams(params.toString());
-    for (const [key, value] of Object.entries(values)) {
-      if (value === null || value === '') next.delete(key);
-      else next.set(key, String(value));
-    }
-    router.replace(`${pathname}${next.size ? `?${next}` : ''}`, { scroll: false });
-  }
-  useEffect(() => {
-    if (deferredSearch === (params.get('search') ?? '')) return;
-    update({ search: deferredSearch || null, page: 1 });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [deferredSearch]);
-  const apiParams = new URLSearchParams({ page: String(page), pageSize: '30', sort });
-  if (deferredSearch) apiParams.set('search', deferredSearch);
-  if (set) apiParams.set('set', set);
-  if (rarity) apiParams.set('rarity', rarity);
-  const queryString = apiParams.toString();
+  const [layout, setLayout] = useState<CardsLayout>('grid');
+  const filters = useCardsPageFilters({ mode: 'COLLECTION', pageSize: 30 });
   const collection = useQuery({
-    queryKey: queryKeys.collection(queryString),
+    queryKey: queryKeys.collection(filters.queryString),
     queryFn: () =>
-      apiFetch<PaginatedResponse<CollectionEntry>>(`/api/v1/me/collection?${queryString}`),
+      apiFetch<PaginatedResponse<CollectionEntry>>(`/api/v1/me/collection?${filters.queryString}`),
+    placeholderData: (previous) => previous,
   });
   const summary = useQuery({
     queryKey: queryKeys.collectionSummary,
@@ -70,25 +33,22 @@ export function CollectionView() {
     queryKey: queryKeys.cardFacets,
     queryFn: () => apiFetch<CardFacets>('/api/v1/card-facets'),
   });
+
   return (
     <div>
-      <div className="mb-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {summary.isLoading
-          ? Array.from({ length: 4 }, (_, index) => <Skeleton key={index} className="h-24" />)
-          : null}
-        {summary.data ? (
-          <>
-            <StatCard label="Exemplaires" value={summary.data.totalCopies} />
-            <StatCard
-              label="Cartes uniques"
-              value={summary.data.uniqueCards}
-              hint={`${summary.data.completionRate} % du catalogue`}
-            />
-            <StatCard label="Variantes" value={summary.data.uniqueVariants} />
-            <StatCard label="Rareté principale" value={summary.data.favoriteRarity ?? '—'} />
-          </>
-        ) : null}
-      </div>
+      <CardsStats
+        loading={summary.isLoading}
+        items={[
+          { label: 'Exemplaires', value: summary.data?.totalCopies ?? 0 },
+          {
+            label: 'Cartes uniques',
+            value: summary.data?.uniqueCards ?? 0,
+            hint: `${summary.data?.completionRate ?? 0} % du catalogue`,
+          },
+          { label: 'Variantes', value: summary.data?.uniqueVariants ?? 0 },
+          { label: 'Rareté principale', value: summary.data?.favoriteRarity ?? '—' },
+        ]}
+      />
       {summary.data?.sets.length ? (
         <Panel className="mb-6">
           <div className="mb-4">
@@ -109,156 +69,77 @@ export function CollectionView() {
             ))}
           </div>
         </Panel>
+      ) : summary.isLoading ? (
+        <Skeleton className="mb-6 h-32" />
       ) : null}
-      <div className="mb-5 grid gap-3 rounded-lg border border-border bg-surface p-4 md:grid-cols-[minmax(14rem,1fr)_12rem_11rem_11rem_auto]">
-        <SearchInput
-          aria-label="Rechercher dans la collection"
-          placeholder="Rechercher une carte…"
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-          onClear={() => setSearch('')}
-        />
-        <Select
-          aria-label="Filtrer par extension"
-          value={set}
-          onChange={(event) => update({ set: event.target.value || null, page: 1 })}
-        >
-          <option value="">Toutes extensions</option>
-          {facets.data?.sets.map((item) => (
-            <option key={item.id} value={item.slug}>
-              {item.name}
-            </option>
-          ))}
-        </Select>
-        <Select
-          aria-label="Filtrer par rareté"
-          value={rarity}
-          onChange={(event) => update({ rarity: event.target.value || null, page: 1 })}
-        >
-          <option value="">Toutes raretés</option>
-          {facets.data?.rarities.map((item) => (
-            <option key={item.id} value={item.slug}>
-              {item.name}
-            </option>
-          ))}
-        </Select>
-        <Select
-          aria-label="Trier la collection"
-          value={sort}
-          onChange={(event) => update({ sort: event.target.value, page: 1 })}
-        >
-          <option value="recent">Obtention récente</option>
-          <option value="name">Nom</option>
-          <option value="-quantity">Quantité</option>
-        </Select>
-        <div className="flex rounded-md border border-border p-0.5">
-          <Button
-            size="icon"
-            variant={layout === 'grid' ? 'secondary' : 'ghost'}
-            onClick={() => setLayout('grid')}
-            aria-label="Affichage en grille"
-          >
-            <Grid3X3 className="size-4" />
+      <CardsToolbar
+        mode="COLLECTION"
+        state={filters.state}
+        search={filters.search}
+        facets={facets.data}
+        layout={layout}
+        sortOptions={collectionSortOptions}
+        isFetching={collection.isFetching && !collection.isLoading}
+        onSearchChange={filters.setSearch}
+        onUpdate={filters.update}
+        onReset={filters.reset}
+        onLayoutChange={setLayout}
+      />
+      <CardsGallery<CollectionEntry>
+        items={collection.data?.data}
+        loading={collection.isLoading}
+        error={collection.isError}
+        errorMessage="Impossible de charger votre collection."
+        layout={layout}
+        page={collection.data?.pagination.page ?? filters.state.page}
+        pageCount={collection.data?.pagination.pageCount ?? 0}
+        total={collection.data?.pagination.total ?? 0}
+        hasFilters={filters.hasFilters}
+        emptyTitle="Votre collection est vide"
+        emptyDescription="Les cartes obtenues lors des ouvertures apparaîtront ici."
+        filteredEmptyDescription="Modifiez les filtres pour afficher vos cartes."
+        emptyAction={
+          <Button asChild>
+            <Link href="/boosters">Voir les boosters</Link>
           </Button>
-          <Button
-            size="icon"
-            variant={layout === 'list' ? 'secondary' : 'ghost'}
-            onClick={() => setLayout('list')}
-            aria-label="Affichage en liste"
-          >
-            <List className="size-4" />
-          </Button>
-        </div>
-      </div>
-      {collection.isLoading ? (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
-          {Array.from({ length: 10 }, (_, index) => (
-            <Skeleton key={index} className="aspect-[5/8]" />
-          ))}
-        </div>
-      ) : null}
-      {collection.isError ? (
-        <ErrorState
-          message="Impossible de charger votre collection."
-          action={
-            <Button variant="outline" size="sm" onClick={() => void collection.refetch()}>
-              Réessayer
-            </Button>
-          }
-        />
-      ) : null}
-      {collection.data && !collection.data.data.length ? (
-        <EmptyState
-          icon={<PackageOpen className="size-5" />}
-          title={search || set || rarity ? 'Aucun résultat' : 'Votre collection est vide'}
-          description={
-            search || set || rarity
-              ? 'Modifiez les filtres pour afficher vos cartes.'
-              : 'Les cartes obtenues lors des ouvertures apparaîtront ici.'
-          }
-          action={
-            !search && !set && !rarity ? (
-              <Button asChild>
-                <Link href="/boosters">Voir les boosters</Link>
-              </Button>
-            ) : undefined
-          }
-        />
-      ) : null}
-      {collection.data?.data.length ? (
-        <>
-          {layout === 'grid' ? (
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
-              {collection.data.data.map((entry) => (
-                <TcgCard
-                  key={entry.cardVariantId}
-                  card={{
-                    ...entry.variant.card,
-                    artworkPath:
-                      entry.variant.artworkPath ??
-                      entry.variant.card.imageUrl ??
-                      entry.variant.card.artworkPath,
-                  }}
-                  mode="collection"
-                  variantName={entry.variant.name}
-                  quantity={entry.quantity}
-                  lockedQuantity={entry.lockedQuantity}
-                />
-              ))}
-            </div>
-          ) : (
-            <div className="divide-y divide-border rounded-lg border border-border bg-surface">
-              {collection.data.data.map((entry) => (
-                <div key={entry.cardVariantId} className="flex items-center gap-2 p-1 sm:px-3">
-                  <div className="min-w-0 flex-1">
-                    <TcgCard
-                      card={entry.variant.card}
-                      mode="compact"
-                      variantName={entry.variant.name}
-                    />
-                  </div>
-                  <div className="shrink-0 pr-3 text-right">
-                    <p className="text-sm font-semibold">× {entry.quantity}</p>
-                    <p
-                      className={cn(
-                        'text-xs text-muted-foreground',
-                        !entry.lockedQuantity && 'invisible',
-                      )}
-                    >
-                      {entry.lockedQuantity} réservée{entry.lockedQuantity > 1 ? 's' : ''}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-          <Pagination
-            page={collection.data.pagination.page}
-            pageCount={collection.data.pagination.pageCount}
-            onPageChange={(nextPage) => update({ page: nextPage })}
+        }
+        onRetry={() => void collection.refetch()}
+        onReset={filters.reset}
+        onPageChange={(page) => filters.update({ page })}
+        getKey={(entry) => entry.cardVariantId}
+        renderGridItem={(entry) => (
+          <TcgCard
+            card={{
+              ...entry.variant.card,
+              artworkPath:
+                entry.variant.artworkPath ??
+                entry.variant.card.imageUrl ??
+                entry.variant.card.artworkPath,
+            }}
+            mode="collection"
+            variantName={entry.variant.name}
+            quantity={entry.quantity}
+            lockedQuantity={entry.lockedQuantity}
           />
-        </>
-      ) : null}
+        )}
+        renderListItem={(entry) => <CollectionCardListItem entry={entry} />}
+      />
+    </div>
+  );
+}
+
+function CollectionCardListItem({ entry }: { entry: CollectionEntry }) {
+  return (
+    <div className="flex min-w-0 items-center gap-2">
+      <div className="min-w-0 flex-1">
+        <TcgCard card={entry.variant.card} mode="compact" variantName={entry.variant.name} />
+      </div>
+      <div className="shrink-0 pr-3 text-right">
+        <p className="text-sm font-semibold">× {entry.quantity}</p>
+        <p className={cn('text-xs text-muted-foreground', !entry.lockedQuantity && 'invisible')}>
+          {entry.lockedQuantity} réservée{entry.lockedQuantity > 1 ? 's' : ''}
+        </p>
+      </div>
     </div>
   );
 }

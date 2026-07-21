@@ -55,7 +55,10 @@ export function TcgCard({
         />
         <div className="px-1 pb-1 pt-3">
           <div className="flex items-start justify-between gap-2">
-            <Badge tone={rarityTone(card.rarity.name)}>{card.rarity.name}</Badge>
+            <div className="flex min-w-0 flex-wrap gap-1">
+              <Badge tone={rarityTone(card.rarity.name)}>{card.rarity.name}</Badge>
+              {card.isCommander ? <Badge tone="primary">Commandant</Badge> : null}
+            </div>
             {card.cost !== null ? (
               <span
                 className="grid size-6 shrink-0 place-items-center rounded-full bg-primary-soft text-xs font-semibold text-primary"

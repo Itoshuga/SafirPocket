@@ -61,4 +61,42 @@ describe('CardsService', () => {
       }),
     );
   });
+
+  it('applies catalogue facets and relational sorting on the server', async () => {
+    const prisma = {
+      card: {
+        findMany: vi.fn().mockResolvedValue([]),
+        count: vi.fn().mockResolvedValue(0),
+      },
+      $transaction: (operations: Array<Promise<unknown>>) => Promise.all(operations),
+    };
+    const service = new CardsService(prisma as never);
+    await service.listCards({
+      page: 2,
+      pageSize: 30,
+      search: 'néant',
+      season: 'origines',
+      rarity: 'rare',
+      type: 'creature',
+      isCommander: true,
+      sort: 'rarity',
+    });
+
+    expect(prisma.card.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        skip: 30,
+        take: 30,
+        where: expect.objectContaining({
+          status: 'published',
+          isActive: true,
+          deletedAt: null,
+          isCommander: true,
+          rarity: { slug: 'rare' },
+          typeLinks: { some: { type: { slug: 'creature' } } },
+          AND: expect.arrayContaining([{ season: { slug: 'origines' } }]),
+        }),
+        orderBy: [{ rarity: { sortOrder: 'asc' } }, { number: 'asc' }],
+      }),
+    );
+  });
 });

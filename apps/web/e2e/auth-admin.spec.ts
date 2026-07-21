@@ -180,6 +180,29 @@ const adminCard = {
   updatedAt: timestamp,
   deletedAt: null,
 };
+const unownedCatalogCard = {
+  ...adminCard,
+  id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+  name: 'Carte non possédée E2E',
+  slug: 'carte-non-possedee-e2e',
+  number: 8,
+  collectionNumber: '8',
+  isCommander: true,
+};
+const ownedCollectionEntry = {
+  cardVariantId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+  quantity: 3,
+  lockedQuantity: 1,
+  firstObtainedAt: timestamp,
+  lastObtainedAt: timestamp,
+  variant: {
+    id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+    name: 'Standard',
+    finish: 'standard',
+    artworkPath: null,
+    card: adminCard,
+  },
+};
 const booster = {
   id: boosterId,
   name: 'Booster Origines E2E',
@@ -306,12 +329,12 @@ async function mockAdminApi(page: Page, actorProfile = profile) {
     if (path.endsWith('/me/collection/summary')) {
       return route.fulfill({
         json: {
-          totalCopies: 0,
-          uniqueVariants: 0,
-          uniqueCards: 0,
-          completionRate: 0,
-          publishedCardCount: 0,
-          favoriteRarity: null,
+          totalCopies: 3,
+          uniqueVariants: 1,
+          uniqueCards: 1,
+          completionRate: 50,
+          publishedCardCount: 2,
+          favoriteRarity: 'Rare',
           sets: [],
         },
       });
@@ -337,8 +360,8 @@ async function mockAdminApi(page: Page, actorProfile = profile) {
     if (path.endsWith('/me/collection')) {
       return route.fulfill({
         json: {
-          data: [],
-          pagination: { page: 1, pageSize: 30, total: 0, pageCount: 0 },
+          data: [ownedCollectionEntry],
+          pagination: { page: 1, pageSize: 30, total: 1, pageCount: 1 },
         },
       });
     }
@@ -592,6 +615,14 @@ async function mockAdminApi(page: Page, actorProfile = profile) {
         },
       });
     }
+    if (path.endsWith('/cards')) {
+      return route.fulfill({
+        json: {
+          data: [adminCard, unownedCatalogCard],
+          pagination: { page: 1, pageSize: 30, total: 2, pageCount: 1 },
+        },
+      });
+    }
     if (path.endsWith('/card-facets')) {
       return route.fulfill({
         json: { sets: [], rarities: [rarity], seasons: [season], types: [cardType] },
@@ -702,6 +733,39 @@ async function expectNoHorizontalOverflowAtSupportedWidths(page: Page) {
 }
 
 test.describe('authenticated administration workflows', () => {
+  test('keeps catalogue and collection visually aligned without mixing ownership', async ({
+    page,
+  }) => {
+    const consoleErrors: string[] = [];
+    page.on('console', (message) => {
+      if (message.type() === 'error') consoleErrors.push(message.text());
+    });
+    await mockAdminApi(page);
+    await login(page);
+
+    await page.goto('/collection');
+    await expect(page.getByRole('heading', { level: 1, name: 'Ma collection' })).toBeVisible();
+    await expect(page.getByTestId('cards-toolbar')).toBeVisible();
+    await expect(page.getByText('Sentinelle E2E')).toBeVisible();
+    await expect(page.getByText('× 3')).toBeVisible();
+    await expect(page.getByText('Carte non possédée E2E')).toHaveCount(0);
+
+    await page.goto('/cards');
+    await expect(page.getByRole('heading', { level: 1, name: 'Toutes les cartes' })).toBeVisible();
+    await expect(page.getByTestId('cards-toolbar')).toBeVisible();
+    await expect(page.getByText('Sentinelle E2E')).toBeVisible();
+    await expect(page.getByText('Carte non possédée E2E')).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Voir ma collection' })).toBeVisible();
+
+    if (usesMobileNavigation(page)) {
+      await page.getByRole('button', { name: /Filtres/ }).click();
+      await expect(page.getByRole('dialog').getByLabel('Type')).toBeVisible();
+      await page.getByRole('dialog').getByRole('button', { name: 'Fermer' }).click();
+    }
+    await expectNoHorizontalOverflowAtSupportedWidths(page);
+    expect(consoleErrors).toEqual([]);
+  });
+
   test('navigates users, opens details and completes the card form', async ({ page }) => {
     const consoleErrors: string[] = [];
     const failedResponses: string[] = [];

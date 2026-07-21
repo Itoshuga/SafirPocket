@@ -18,9 +18,33 @@ import {
   cardExportOptionsSchema,
   cardImportPreviewOptionsSchema,
   safirCardImportItemSchema,
+  cardFiltersSchema,
+  collectionFiltersSchema,
 } from './index.js';
 
 describe('shared validation', () => {
+  it('parses shared catalogue filters without coercing false to true', () => {
+    expect(
+      cardFiltersSchema.parse({
+        season: 'origines',
+        type: 'allie',
+        isCommander: 'false',
+        sort: 'season',
+      }),
+    ).toMatchObject({
+      season: 'origines',
+      type: 'allie',
+      isCommander: false,
+      sort: 'season',
+    });
+  });
+
+  it('keeps collection-only sorts out of the public catalogue contract', () => {
+    expect(collectionFiltersSchema.safeParse({ sort: '-quantity' }).success).toBe(true);
+    expect(cardFiltersSchema.safeParse({ sort: '-quantity' }).success).toBe(false);
+    expect(cardFiltersSchema.safeParse({ isCommander: 'yes' }).success).toBe(false);
+  });
+
   it('rejects invalid deck quantities', () => {
     expect(
       deckCardSchema.safeParse({ cardVariantId: crypto.randomUUID(), quantity: 0 }).success,

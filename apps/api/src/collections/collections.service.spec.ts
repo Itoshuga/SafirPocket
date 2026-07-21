@@ -78,8 +78,10 @@ describe('CollectionsService', () => {
       pageSize: 10,
       sort: 'name',
       search: 'safir',
-      set: 'alpha',
+      season: 'alpha',
       rarity: 'Rare',
+      type: 'allie',
+      isCommander: false,
     });
     expect(prisma.userCard.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -90,6 +92,8 @@ describe('CollectionsService', () => {
             card: expect.objectContaining({
               rarity: { slug: 'Rare' },
               season: { slug: 'alpha' },
+              typeLinks: { some: { type: { slug: 'allie' } } },
+              isCommander: false,
               isActive: true,
               deletedAt: null,
             }),

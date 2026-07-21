@@ -150,19 +150,33 @@ export const paginationSchema = z.object({
   pageSize: z.coerce.number().int().min(1).max(100).default(24),
 });
 
-export const cardFiltersSchema = paginationSchema.extend({
+const optionalQueryBooleanSchema = z
+  .enum(['true', 'false'])
+  .transform((value) => value === 'true')
+  .optional();
+
+const sharedCardsFiltersShape = {
   search: z.string().trim().max(100).optional(),
+  season: z.string().trim().max(120).optional(),
+  // Kept as a compatibility alias for existing shared catalogue links.
   set: z.string().trim().max(80).optional(),
-  rarity: z.string().trim().max(50).optional(),
-  type: z.string().trim().max(50).optional(),
-  sort: z.enum(['name', '-name', 'number', '-createdAt']).default('number'),
+  rarity: z.string().trim().max(100).optional(),
+  type: z.string().trim().max(100).optional(),
+  isCommander: optionalQueryBooleanSchema,
+};
+
+export const cardFiltersSchema = paginationSchema.extend({
+  ...sharedCardsFiltersShape,
+  sort: z
+    .enum(['number', '-number', 'name', '-name', 'rarity', 'season', '-createdAt'])
+    .default('number'),
 });
 
 export const collectionFiltersSchema = paginationSchema.extend({
-  search: z.string().trim().max(100).optional(),
-  set: z.string().trim().max(80).optional(),
-  rarity: z.string().trim().max(50).optional(),
-  sort: z.enum(['recent', 'name', '-quantity']).default('recent'),
+  ...sharedCardsFiltersShape,
+  sort: z
+    .enum(['recent', 'number', '-number', 'name', '-name', 'rarity', 'season', '-quantity'])
+    .default('recent'),
 });
 
 export const rankingsQuerySchema = paginationSchema.extend({
