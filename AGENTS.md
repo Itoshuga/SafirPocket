@@ -44,6 +44,12 @@ Lire avant toute modification : `README.md`, `docs/security.md`, `supabase/migra
 24. Les imports de cartes passent toujours par un aperçu serveur lié à l'acteur et une transaction
     atomique. Les exports sont filtrés et paginés côté API; ne jamais parser un CSV par découpage
     manuel ni générer l'export complet depuis la page courante.
+25. Les bannières de profil utilisent exclusivement `profile-banners/{auth.uid()}/...`. Persister
+    un chemin seulement après validation API du propriétaire, du MIME, de la taille et de la
+    signature; supprimer l'ancien objet après la mise à jour réussie.
+26. Le profil principal consomme les agrégats de collection par saison fournis par l'API. Les
+    filtres complets restent dans les routes `collection/[seasonSlug]`; les aperçus sont ordonnés
+    par rareté décroissante, numéro croissant puis variante, jamais aléatoirement.
 
 ## Chaîne de changement
 

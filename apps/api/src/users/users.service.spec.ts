@@ -8,6 +8,8 @@ const profile = {
   email: 'private@example.com',
   displayName: 'Lucas',
   avatarUrl: 'lucas/avatar.webp',
+  bannerUrl: 'lucas/banner.webp',
+  bannerPositionY: 68,
   bio: 'Collectionneur',
   role: 'MODERATOR' as const,
   status: 'ACTIVE' as const,
@@ -64,6 +66,8 @@ describe('UsersService public profile', () => {
       username: 'lucas',
       role: 'MODERATOR',
       roleLabel: 'Modérateur',
+      bannerUrl: 'lucas/banner.webp',
+      bannerPositionY: 68,
       friendship: { status: 'NONE' },
     });
     expect(result).not.toHaveProperty('email');
@@ -85,6 +89,8 @@ describe('UsersService public profile', () => {
       username: 'lucas',
       displayName: null,
       avatarUrl: null,
+      bannerUrl: null,
+      bannerPositionY: 50,
       bio: null,
       role: 'MODERATOR',
       profileVisibility: 'PRIVATE',

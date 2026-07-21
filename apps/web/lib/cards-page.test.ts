@@ -24,6 +24,7 @@ describe('cards page filters', () => {
       rarity: 'rare',
       type: 'allie',
       commander: 'true',
+      owned: '',
       sort: 'rarity',
     });
     expect(buildCardsApiQuery(state, 30)).toContain('isCommander=true');
@@ -41,6 +42,17 @@ describe('cards page filters', () => {
     );
     expect(catalog).toMatchObject({ page: 1, commander: '', sort: 'number' });
     expect(collection.sort).toBe('-quantity');
+  });
+
+  it('keeps ownership filtering out of the public catalogue query', () => {
+    const catalog = readCardsPageUrlState(new URLSearchParams('owned=true'), 'CATALOG');
+    const collection = readCardsPageUrlState(
+      new URLSearchParams('owned=false'),
+      'PROFILE_COLLECTION',
+    );
+    expect(catalog.owned).toBe('');
+    expect(collection.owned).toBe('false');
+    expect(buildCardsApiQuery(collection, 30)).toContain('owned=false');
   });
 
   it('writes canonical season parameters and resets pagination', () => {
@@ -68,5 +80,16 @@ describe('cards page filters', () => {
     expect(queryKeys.publicProfileCollection('Lucas', 'page=1')).not.toEqual(
       queryKeys.collection('page=1'),
     );
+    expect(queryKeys.profileSeasonCollections('me')).not.toEqual(
+      queryKeys.profileSeasonCollections('Lucas'),
+    );
+    expect(queryKeys.profileSeasonCollection('Lucas', 'origines', 'page=1')).toEqual([
+      'profile',
+      'lucas',
+      'collection',
+      'seasons',
+      'origines',
+      'page=1',
+    ]);
   });
 });

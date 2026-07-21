@@ -57,6 +57,16 @@ export const profileUpdateSchema = z
   .partial()
   .strict();
 
+export const updateProfileBannerSchema = z
+  .object({
+    bannerUrl: nullableTrimmedString(2048),
+    bannerPositionY: z.number().int().min(0).max(100).optional(),
+  })
+  .strict()
+  .refine((input) => Object.keys(input).length > 0, {
+    message: 'Aucune modification de bannière à enregistrer.',
+  });
+
 export const userPreferencesUpdateSchema = z
   .object({
     profileVisibility: profileVisibilitySchema,
@@ -183,6 +193,17 @@ export const collectionFiltersSchema = paginationSchema.extend({
     .default('recent'),
 });
 
+export const seasonCollectionFiltersSchema = paginationSchema.extend({
+  search: sharedCardsFiltersShape.search,
+  rarity: sharedCardsFiltersShape.rarity,
+  type: sharedCardsFiltersShape.type,
+  isCommander: sharedCardsFiltersShape.isCommander,
+  owned: optionalQueryBooleanSchema,
+  sort: z
+    .enum(['recent', 'number', '-number', 'name', '-name', 'rarity', '-quantity'])
+    .default('number'),
+});
+
 export const rankingsQuerySchema = paginationSchema.extend({
   search: z.string().trim().max(100).optional(),
   pageSize: z.coerce.number().int().min(1).max(100).default(25),
@@ -204,7 +225,7 @@ const optionalDateSchema = z
   .optional();
 
 const nullableDescriptionSchema = z.string().trim().max(5000).nullable().optional();
-const slugSchema = z
+export const slugSchema = z
   .string()
   .trim()
   .min(1)
@@ -727,6 +748,7 @@ export const matchActionIntentSchema = z.object({
 
 export type CardFilters = z.infer<typeof cardFiltersSchema>;
 export type CollectionFilters = z.infer<typeof collectionFiltersSchema>;
+export type SeasonCollectionFilters = z.infer<typeof seasonCollectionFiltersSchema>;
 export type RankingsQuery = z.infer<typeof rankingsQuerySchema>;
 export type SignupInput = z.infer<typeof signupSchema>;
 export type AdminUsersQuery = z.infer<typeof adminUsersQuerySchema>;
@@ -767,6 +789,7 @@ export type AdminBoostersQuery = z.infer<typeof adminBoostersQuerySchema>;
 export type PackOpeningsQuery = z.infer<typeof packOpeningsQuerySchema>;
 export type OpenBoosterInput = z.infer<typeof openBoosterSchema>;
 export type ProfileUpdateInput = z.infer<typeof profileUpdateSchema>;
+export type UpdateProfileBannerInput = z.infer<typeof updateProfileBannerSchema>;
 export type UserPreferencesUpdateInput = z.infer<typeof userPreferencesUpdateSchema>;
 export type UserSearchQuery = z.infer<typeof userSearchQuerySchema>;
 export type AccountEmailUpdateInput = z.infer<typeof accountEmailUpdateSchema>;

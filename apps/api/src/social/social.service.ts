@@ -75,6 +75,16 @@ export class SocialService {
     return this.accept(userId, request.id);
   }
 
+  async declineByUsername(userId: string, username: string): Promise<FriendRequest> {
+    const targetUserId = await this.targetIdByUsername(username);
+    const request = await this.prisma.friendRequest.findFirst({
+      where: { senderUserId: targetUserId, receiverUserId: userId, status: 'PENDING' },
+      select: { id: true },
+    });
+    if (!request) this.requestNotFound();
+    return this.decline(userId, request.id);
+  }
+
   async removeFriendByUsername(userId: string, username: string): Promise<{ removed: true }> {
     return this.removeFriend(userId, await this.targetIdByUsername(username));
   }

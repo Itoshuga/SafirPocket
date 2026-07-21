@@ -3,14 +3,14 @@
 import type { ProfileStats, UserPreferences, UserProfile } from '@safir/shared-types';
 import { Button, ErrorState, Skeleton } from '@safir/ui';
 import { useQuery } from '@tanstack/react-query';
-import { Copy, Settings, ShieldAlert, UserPen } from 'lucide-react';
+import { Share2, ShieldAlert, UserPen } from 'lucide-react';
 import Link from 'next/link';
 import { apiFetch } from '@/lib/api-client';
 import { queryKeys } from '@/lib/query-keys';
 import { useAppStore } from '@/stores/app-store';
-import { CollectionView } from './collection-view';
-import { ProfileHeader } from './profile-header';
-import { ProfileStatsBar } from './profile-stats-bar';
+import { ProfileCollectionBySeason } from './profile-collection-by-season';
+import { ProfileSocialStats } from './profile-social-stats';
+import { SocialProfileHeader } from './social-profile-header';
 
 export function ProfileOverview() {
   const notify = useAppStore((state) => state.notify);
@@ -45,14 +45,15 @@ export function ProfileOverview() {
 
   return (
     <div className="space-y-7">
-      {profile.isLoading || preferences.isLoading ? <Skeleton className="h-52 w-full" /> : null}
+      {profile.isLoading || preferences.isLoading ? <Skeleton className="h-80 w-full" /> : null}
       {profile.isError || preferences.isError ? (
         <ErrorState message="Impossible de charger les informations du profil." />
       ) : null}
       {profile.data && preferences.data ? (
-        <ProfileHeader
+        <SocialProfileHeader
           profile={profile.data}
           visibility={preferences.data.profileVisibility}
+          friendsCount={stats.data?.friendsCount}
           actions={
             <>
               <Button asChild size="sm">
@@ -60,22 +61,21 @@ export function ProfileOverview() {
                   <UserPen className="size-4" /> Modifier le profil
                 </Link>
               </Button>
-              <Button asChild variant="secondary" size="sm">
-                <Link href="/settings/profile">
-                  <Settings className="size-4" /> Préférences
-                </Link>
-              </Button>
               <Button
-                variant="ghost"
+                variant="outline"
                 size="sm"
                 onClick={() => {
+                  if (preferences.data.profileVisibility === 'PRIVATE') {
+                    notify('Rendez votre profil public avant de partager son lien.', 'info');
+                    return;
+                  }
                   const url = `${window.location.origin}/users/${encodeURIComponent(profile.data.username)}`;
                   void navigator.clipboard.writeText(url).then(() => {
                     notify('Lien du profil copié.', 'success');
                   });
                 }}
               >
-                <Copy className="size-4" /> Copier le lien
+                <Share2 className="size-4" /> Partager
               </Button>
             </>
           }
@@ -84,18 +84,14 @@ export function ProfileOverview() {
       {stats.isError ? (
         <ErrorState message="Les statistiques du profil ne sont pas disponibles." />
       ) : (
-        <ProfileStatsBar
+        <ProfileSocialStats
           loading={stats.isLoading}
+          completion={stats.data?.collectionCompletionPercentage}
           items={
             stats.data
               ? [
                   { label: 'Cartes uniques', value: stats.data.uniqueCardsCount },
-                  { label: 'Copies totales', value: stats.data.totalCardsCount },
-                  {
-                    label: 'Progression',
-                    value: `${stats.data.collectionCompletionPercentage} %`,
-                    hint: `${stats.data.totalAvailableCardsCount} cartes disponibles`,
-                  },
+                  { label: 'Cartes totales', value: stats.data.totalCardsCount },
                   { label: 'Decks', value: stats.data.decksCount },
                   { label: 'Amis', value: stats.data.friendsCount },
                 ]
@@ -103,7 +99,13 @@ export function ProfileOverview() {
           }
         />
       )}
-      <CollectionView stats={stats.data} />
+      {profile.data ? (
+        <ProfileCollectionBySeason
+          username={profile.data.username}
+          ownProfile
+          visibility={preferences.data?.collectionVisibility}
+        />
+      ) : null}
     </div>
   );
 }

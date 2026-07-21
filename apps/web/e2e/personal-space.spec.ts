@@ -43,6 +43,8 @@ const profile = {
   email,
   displayName: 'Safir E2E',
   avatarUrl: null,
+  bannerUrl: null,
+  bannerPositionY: 50,
   bio: 'Profil de test',
   role: 'USER',
   roleLabel: 'Utilisateur',
@@ -116,6 +118,60 @@ const collectionEntry = {
   },
 };
 
+const seasonCollectionItem = {
+  card,
+  owned: true,
+  quantity: 3,
+  lockedQuantity: 1,
+  ownedVariants: [
+    {
+      cardVariantId: variantId,
+      name: 'Standard',
+      finish: 'standard',
+      artworkPath: null,
+      quantity: 3,
+      lockedQuantity: 1,
+      lastObtainedAt: timestamp,
+    },
+  ],
+};
+
+const seasonSummary = {
+  season: {
+    id: 'season',
+    name: 'Origines',
+    slug: 'origines',
+    code: 'ORI',
+    imageUrl: null,
+    sortOrder: 1,
+  },
+  collection: {
+    uniqueOwnedCards: 7,
+    totalAvailableCards: 20,
+    totalCopies: 12,
+    completionPercentage: 35,
+  },
+  previewCards: [seasonCollectionItem],
+};
+
+const emptySeasonSummary = {
+  season: {
+    id: 'season-empty',
+    name: 'Héritage',
+    slug: 'heritage',
+    code: 'HER',
+    imageUrl: null,
+    sortOrder: 2,
+  },
+  collection: {
+    uniqueOwnedCards: 0,
+    totalAvailableCards: 10,
+    totalCopies: 0,
+    completionPercentage: 0,
+  },
+  previewCards: [],
+};
+
 async function mockPersonalSpace(page: Page) {
   const mutations: string[] = [];
   let currentProfile = { ...profile };
@@ -153,6 +209,17 @@ async function mockPersonalSpace(page: Page) {
   );
   await page.route('**/auth/v1/user**', (route) => route.fulfill({ json: authUser }));
   await page.route('**/auth/v1/logout**', (route) => route.fulfill({ status: 204 }));
+  await page.route('**/storage/v1/object/**', (route) => {
+    const method = route.request().method();
+    if (method === 'GET') {
+      return route.fulfill({
+        contentType: 'image/png',
+        body: Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+      });
+    }
+    mutations.push(method === 'DELETE' ? 'banner-storage-delete' : 'banner-storage-upload');
+    return route.fulfill({ json: { Key: `${userId}/banner.png` } });
+  });
   await page.route('**/api/v1/**', async (route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
@@ -192,6 +259,15 @@ async function mockPersonalSpace(page: Page) {
         },
       });
     }
+    if (path.endsWith('/me/profile/banner')) {
+      if (request.method() === 'DELETE') {
+        currentProfile = { ...currentProfile, bannerUrl: null, bannerPositionY: 50 };
+      } else {
+        currentProfile = { ...currentProfile, ...request.postDataJSON() };
+      }
+      mutations.push('profile-banner');
+      return route.fulfill({ json: currentProfile });
+    }
     if (path.endsWith('/me/profile')) {
       if (request.method() === 'PATCH') {
         currentProfile = { ...currentProfile, ...request.postDataJSON() };
@@ -227,6 +303,8 @@ async function mockPersonalSpace(page: Page) {
           username: 'lucas_e2e',
           displayName: 'Lucas E2E',
           avatarUrl: null,
+          bannerUrl: 'lucas_e2e/banner.webp',
+          bannerPositionY: 62,
           bio: 'Collection publique',
           role: 'PIONEER',
           roleLabel: 'Pionnier',
@@ -253,6 +331,8 @@ async function mockPersonalSpace(page: Page) {
           username: 'friends_only',
           displayName: 'Entre amis',
           avatarUrl: null,
+          bannerUrl: null,
+          bannerPositionY: 50,
           bio: null,
           role: 'USER',
           roleLabel: 'Utilisateur',
@@ -279,6 +359,8 @@ async function mockPersonalSpace(page: Page) {
           username: 'private_user',
           displayName: null,
           avatarUrl: null,
+          bannerUrl: null,
+          bannerPositionY: 50,
           bio: null,
           role: 'ADMINISTRATOR',
           roleLabel: 'Administrateur',
@@ -293,6 +375,34 @@ async function mockPersonalSpace(page: Page) {
             canViewCollection: false,
             canViewQuantities: false,
             canViewCollectionCompletion: false,
+            canSendFriendRequest: true,
+            canBlock: true,
+          },
+        },
+      });
+    }
+    if (path.endsWith('/users/moderator_e2e/public-profile')) {
+      return route.fulfill({
+        json: {
+          username: 'moderator_e2e',
+          displayName: 'Modération E2E',
+          avatarUrl: null,
+          bannerUrl: null,
+          bannerPositionY: 50,
+          bio: null,
+          role: 'MODERATOR',
+          roleLabel: 'Modérateur',
+          isPioneer: false,
+          profileVisibility: 'PUBLIC',
+          collectionVisibility: 'PUBLIC',
+          createdAt: timestamp,
+          friendship: { status: 'NONE' },
+          permissions: {
+            canViewProfile: true,
+            canViewStats: true,
+            canViewCollection: true,
+            canViewQuantities: true,
+            canViewCollectionCompletion: true,
             canSendFriendRequest: true,
             canBlock: true,
           },
@@ -316,6 +426,78 @@ async function mockPersonalSpace(page: Page) {
     }
     if (path.endsWith('/users/friends_only/profile-stats')) {
       return route.fulfill({ json: { friendsCount: 2, decksCount: 1 } });
+    }
+    if (path.endsWith('/users/moderator_e2e/profile-stats')) {
+      return route.fulfill({ json: { friendsCount: 2, decksCount: 1 } });
+    }
+    if (path.endsWith('/me/collection/seasons/origines')) {
+      return route.fulfill({
+        json: {
+          season: seasonSummary.season,
+          collection: seasonSummary.collection,
+          cards: {
+            data: [seasonCollectionItem],
+            pagination: { page: 1, pageSize: 30, total: 1, pageCount: 1 },
+          },
+        },
+      });
+    }
+    if (path.endsWith('/me/collection/seasons')) {
+      return route.fulfill({ json: [seasonSummary, emptySeasonSummary] });
+    }
+    if (path.endsWith('/users/lucas_e2e/collection/seasons/origines')) {
+      return route.fulfill({
+        json: {
+          season: seasonSummary.season,
+          collection: {
+            uniqueOwnedCards: 7,
+            totalAvailableCards: 20,
+            completionPercentage: 35,
+          },
+          cards: {
+            data: [
+              {
+                ...seasonCollectionItem,
+                quantity: undefined,
+                lockedQuantity: undefined,
+                ownedVariants: seasonCollectionItem.ownedVariants.map(
+                  ({
+                    quantity: _quantity,
+                    lockedQuantity: _locked,
+                    lastObtainedAt: _date,
+                    ...variant
+                  }) => variant,
+                ),
+              },
+            ],
+            pagination: { page: 1, pageSize: 30, total: 1, pageCount: 1 },
+          },
+        },
+      });
+    }
+    if (path.endsWith('/users/lucas_e2e/collection/seasons')) {
+      return route.fulfill({
+        json: [
+          {
+            ...seasonSummary,
+            collection: {
+              uniqueOwnedCards: 7,
+              totalAvailableCards: 20,
+              completionPercentage: 35,
+            },
+            previewCards: [
+              {
+                ...seasonCollectionItem,
+                quantity: undefined,
+                lockedQuantity: undefined,
+              },
+            ],
+          },
+        ],
+      });
+    }
+    if (path.endsWith('/users/moderator_e2e/collection/seasons')) {
+      return route.fulfill({ json: [] });
     }
     if (path.endsWith('/users/lucas_e2e/collection')) {
       return route.fulfill({
@@ -440,10 +622,18 @@ test('profile, avatar menu, preferences and social workflows are connected', asy
   await login(page);
   await page.goto('/profile');
   await expect(page.getByRole('heading', { name: 'Safir E2E' })).toBeVisible();
+  await expect(page.getByTestId('profile-banner')).toBeVisible();
+  await expect(page.getByTestId('profile-banner')).toHaveAttribute(
+    'aria-label',
+    /bannière par défaut/,
+  );
   await expect(page.getByLabel('Rôle : Utilisateur')).toBeVisible();
-  await expect(page.getByText('Copies totales')).toBeVisible();
+  await expect(page.getByText('Cartes totales')).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Collection' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Origines' })).toBeVisible();
   await expect(page.getByText('Sentinelle sociale')).toBeVisible();
+  await expect(page.getByText('Aucune carte obtenue pour cette saison.')).toBeVisible();
+  await expect(page.getByLabel('Rechercher dans la collection')).toHaveCount(0);
   await expect(page.getByRole('link', { name: 'Collection', exact: true })).toHaveCount(0);
   await page
     .getByRole('button', { name: 'Ouvrir le menu du compte' })
@@ -454,8 +644,20 @@ test('profile, avatar menu, preferences and social workflows are connected', asy
   await expect(page).toHaveURL(/\/settings\/profile$/);
 
   await page.getByLabel("Nom d'utilisateur").fill('safir_renamed');
-  await page.getByRole('button', { name: 'Enregistrer' }).click();
+  await page.getByRole('button', { name: 'Enregistrer', exact: true }).click();
   await expect.poll(() => mutations).toContain('profile');
+
+  const bannerEditor = page.getByTestId('profile-banner-editor');
+  await bannerEditor.locator('input[type="file"]').setInputFiles({
+    name: 'banner.png',
+    mimeType: 'image/png',
+    buffer: Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+  });
+  await bannerEditor.getByRole('slider').fill('72');
+  await bannerEditor.getByRole('button', { name: 'Enregistrer la bannière' }).click();
+  await expect.poll(() => mutations).toContain('banner-storage-upload');
+  await expect.poll(() => mutations).toContain('profile-banner');
+  await expect(bannerEditor.getByRole('slider')).toHaveValue('72');
 
   await page.getByRole('link', { name: /Confidentialit/ }).click();
   await page.getByRole('switch', { name: 'Profil public' }).click();
@@ -485,19 +687,39 @@ test('profile, avatar menu, preferences and social workflows are connected', asy
   expect({ consoleErrors, failedResponses }).toEqual({ consoleErrors: [], failedResponses: [] });
 });
 
-test('profile collection filters, card details and legacy redirect stay connected', async ({
+test('season collection details own the filters, card details and legacy redirect', async ({
   page,
 }) => {
   await mockPersonalSpace(page);
   await login(page);
+  await expect(page.getByLabel('Rechercher dans la collection')).toHaveCount(0);
+  await page.getByRole('link', { name: 'Explorer la collection de la saison Origines' }).click();
+  await expect(page).toHaveURL(/\/profile\/collection\/origines$/);
+  await expect(page.getByRole('heading', { name: 'Origines' })).toBeVisible();
   await page.getByLabel('Rechercher dans la collection').fill('sentinelle');
   await expect(page).toHaveURL(/search=sentinelle/);
+  const mobileFilters = page.getByRole('button', { name: /^Filtres/ });
+  const filtersUseDrawer = await mobileFilters.isVisible();
+  let filtersRoot = page.getByTestId('cards-toolbar');
+  if (filtersUseDrawer) {
+    await mobileFilters.click();
+    filtersRoot = page.getByRole('dialog', { name: 'Filtrer la collection' });
+  }
+  await filtersRoot.getByLabel('Rareté').selectOption('rare');
+  await filtersRoot.getByLabel('Type').selectOption('allie');
+  await expect(page).toHaveURL(/rarity=rare/);
+  await expect(page).toHaveURL(/type=allie/);
+  if (filtersUseDrawer) await filtersRoot.getByRole('button', { name: 'Fermer' }).click();
   await page
     .getByRole('link', { name: /Sentinelle sociale/ })
     .first()
     .click();
   await expect(page).toHaveURL(new RegExp(`/cards/${cardId}$`));
   await expect(page.getByRole('heading', { name: 'Sentinelle sociale' })).toBeVisible();
+
+  await page.goto('/profile/collection/origines');
+  await page.getByRole('link', { name: 'Retour au profil' }).click();
+  await expect(page).toHaveURL(/\/profile#collection$/);
 
   await page.goto('/collection');
   await expect(page).toHaveURL(/\/profile#collection$/);
@@ -518,6 +740,10 @@ test('public profile collection obeys public, friends-only and private access', 
 
   await page.goto('/users/lucas_e2e');
   await expect(page.getByRole('heading', { name: 'Lucas E2E' })).toBeVisible();
+  await expect(page.getByTestId('profile-banner')).toHaveAttribute(
+    'style',
+    /background-position: center 62%/,
+  );
   await expect(page.getByLabel('Rôle : Pionnier')).toBeVisible();
   await expect(page.getByText('Sentinelle sociale')).toBeVisible();
   await expect(page.getByText('× 3')).toHaveCount(0);
@@ -534,6 +760,9 @@ test('public profile collection obeys public, friends-only and private access', 
   await expect(page.getByText('Ce profil est privé.')).toBeVisible();
   await expect(page.getByLabel('Rôle : Administrateur')).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Collection' })).toHaveCount(0);
+
+  await page.goto('/users/moderator_e2e');
+  await expect(page.getByLabel('Rôle : Modérateur')).toBeVisible();
   expect({ consoleErrors, failedResponses }).toEqual({ consoleErrors: [], failedResponses: [] });
 });
 

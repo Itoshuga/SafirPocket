@@ -1,5 +1,5 @@
-import { Body, Controller, Get, Patch } from '@nestjs/common';
-import { profileUpdateSchema } from '@safir/validation';
+import { Body, Controller, Delete, Get, Patch } from '@nestjs/common';
+import { profileUpdateSchema, updateProfileBannerSchema } from '@safir/validation';
 import { CurrentUser } from '../common/auth/current-user.decorator.js';
 import type { AuthenticatedUser } from '../common/auth/auth.types.js';
 import { parseInput } from '../common/errors/zod.js';
@@ -33,5 +33,15 @@ export class ProfilesController {
   @Patch()
   updateMe(@CurrentUser() user: AuthenticatedUser, @Body() body: unknown) {
     return this.profiles.updateMe(user.id, parseInput(profileUpdateSchema, body));
+  }
+
+  @Patch('banner')
+  updateBanner(@CurrentUser() user: AuthenticatedUser, @Body() body: unknown) {
+    return this.profiles.updateBanner(user.id, parseInput(updateProfileBannerSchema, body));
+  }
+
+  @Delete('banner')
+  removeBanner(@CurrentUser() user: AuthenticatedUser) {
+    return this.profiles.removeBanner(user.id);
   }
 }

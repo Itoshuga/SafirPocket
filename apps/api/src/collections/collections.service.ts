@@ -1,10 +1,25 @@
-import { ForbiddenException, Injectable } from '@nestjs/common';
-import type { ProfileCollectionItem } from '@safir/shared-types';
-import type { CollectionFilters } from '@safir/validation';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import type {
+  ProfileCollectionItem,
+  ProfileSeasonCollectionSummary,
+  SeasonCollectionCardItem,
+  SeasonCollectionDetails,
+} from '@safir/shared-types';
+import type { CollectionFilters, SeasonCollectionFilters } from '@safir/validation';
 import type { Prisma } from '../generated/prisma/client.js';
 import { cardRelations, toCard } from '../cards/card.mapper.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { ProfileAccessPolicyService } from '../users/profile-access-policy.service.js';
+
+const seasonCardInclude = {
+  ...cardRelations,
+  variants: {
+    include: { userCards: true },
+    orderBy: [{ displayOrder: 'asc' as const }, { name: 'asc' as const }],
+  },
+} satisfies Prisma.CardInclude;
+
+type SeasonCardWithRelations = Prisma.CardGetPayload<{ include: typeof seasonCardInclude }>;
 
 @Injectable()
 export class CollectionsService {
@@ -51,6 +66,378 @@ export class CollectionsService {
       })),
       pagination,
     };
+  }
+
+  async seasonSummaries(userId: string) {
+    return this.buildSeasonSummaries(userId, {
+      includeEmpty: true,
+      canViewQuantities: true,
+      canViewCompletion: true,
+      includePrivateOwnership: true,
+    });
+  }
+
+  async publicSeasonSummaries(username: string, viewerId?: string) {
+    const access = await this.resolvePublicCollection(username, viewerId);
+    return this.buildSeasonSummaries(access.profile.id, {
+      includeEmpty: false,
+      canViewQuantities: access.permissions.canViewQuantities,
+      canViewCompletion: access.permissions.canViewCollectionCompletion,
+      includePrivateOwnership: false,
+    });
+  }
+
+  async seasonDetails(userId: string, seasonSlug: string, filters: SeasonCollectionFilters) {
+    return this.querySeasonDetails(userId, seasonSlug, filters, {
+      publicOnlyOwned: false,
+      canViewQuantities: true,
+      canViewCompletion: true,
+      includePrivateOwnership: true,
+    });
+  }
+
+  async publicSeasonDetails(
+    username: string,
+    viewerId: string | undefined,
+    seasonSlug: string,
+    filters: SeasonCollectionFilters,
+  ) {
+    const access = await this.resolvePublicCollection(username, viewerId);
+    return this.querySeasonDetails(access.profile.id, seasonSlug, filters, {
+      publicOnlyOwned: true,
+      canViewQuantities: access.permissions.canViewQuantities,
+      canViewCompletion: access.permissions.canViewCollectionCompletion,
+      includePrivateOwnership: false,
+    });
+  }
+
+  private async buildSeasonSummaries(
+    userId: string,
+    options: {
+      includeEmpty: boolean;
+      canViewQuantities: boolean;
+      canViewCompletion: boolean;
+      includePrivateOwnership: boolean;
+    },
+  ): Promise<ProfileSeasonCollectionSummary[]> {
+    const [seasons, ownedRows] = await Promise.all([
+      this.prisma.cardSeason.findMany({
+        where: { isActive: true, deletedAt: null },
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          code: true,
+          sortOrder: true,
+          _count: {
+            select: {
+              cards: { where: { status: 'published', isActive: true, deletedAt: null } },
+            },
+          },
+          boosters: {
+            where: { status: 'published', isActive: true, deletedAt: null },
+            select: { imageUrl: true },
+            orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+            take: 1,
+          },
+        },
+        orderBy: [{ sortOrder: 'asc' }, { startDate: 'desc' }, { name: 'asc' }],
+      }),
+      this.prisma.userCard.findMany({
+        where: {
+          userId,
+          quantity: { gt: 0 },
+          cardVariant: {
+            card: {
+              status: 'published',
+              isActive: true,
+              deletedAt: null,
+              season: { isActive: true, deletedAt: null },
+            },
+          },
+        },
+        select: {
+          quantity: true,
+          lockedQuantity: true,
+          lastObtainedAt: true,
+          cardVariant: {
+            select: {
+              id: true,
+              name: true,
+              finish: true,
+              artworkPath: true,
+              card: { include: cardRelations },
+            },
+          },
+        },
+        orderBy: [
+          { cardVariant: { card: { rarity: { sortOrder: 'desc' } } } },
+          { cardVariant: { card: { number: 'asc' } } },
+          { cardVariant: { displayOrder: 'asc' } },
+        ],
+      }),
+    ]);
+
+    const cardsBySeason = new Map<string, Map<string, SeasonCollectionCardItem>>();
+    for (const row of ownedRows) {
+      const card = row.cardVariant.card;
+      const seasonCards = cardsBySeason.get(card.seasonId) ?? new Map();
+      const existing = seasonCards.get(card.id);
+      const variant = {
+        cardVariantId: row.cardVariant.id,
+        name: row.cardVariant.name,
+        finish: row.cardVariant.finish,
+        artworkPath: row.cardVariant.artworkPath,
+        ...(options.canViewQuantities ? { quantity: row.quantity } : {}),
+        ...(options.includePrivateOwnership
+          ? {
+              lockedQuantity: row.lockedQuantity,
+              lastObtainedAt: row.lastObtainedAt.toISOString(),
+            }
+          : {}),
+      };
+      if (existing) {
+        existing.ownedVariants.push(variant);
+        if (options.canViewQuantities) {
+          existing.quantity = (existing.quantity ?? 0) + row.quantity;
+        }
+        if (options.includePrivateOwnership) {
+          existing.lockedQuantity = (existing.lockedQuantity ?? 0) + row.lockedQuantity;
+        }
+      } else {
+        seasonCards.set(card.id, {
+          card: toCard(card),
+          owned: true,
+          ...(options.canViewQuantities ? { quantity: row.quantity } : {}),
+          ...(options.includePrivateOwnership ? { lockedQuantity: row.lockedQuantity } : {}),
+          ownedVariants: [variant],
+        });
+      }
+      cardsBySeason.set(card.seasonId, seasonCards);
+    }
+
+    return seasons.flatMap((season) => {
+      const cards = [...(cardsBySeason.get(season.id)?.values() ?? [])];
+      if (!options.includeEmpty && cards.length === 0) return [];
+      const totalCopies = options.canViewQuantities
+        ? cards.reduce((sum, card) => sum + (card.quantity ?? 0), 0)
+        : undefined;
+      const completion = season._count.cards
+        ? Math.round((cards.length / season._count.cards) * 1000) / 10
+        : 0;
+      return [
+        {
+          season: {
+            id: season.id,
+            name: season.name,
+            slug: season.slug,
+            code: season.code,
+            imageUrl: season.boosters[0]?.imageUrl ?? null,
+            sortOrder: season.sortOrder,
+          },
+          collection: {
+            uniqueOwnedCards: cards.length,
+            ...(options.canViewCompletion
+              ? {
+                  totalAvailableCards: season._count.cards,
+                  completionPercentage: completion,
+                }
+              : {}),
+            ...(totalCopies !== undefined ? { totalCopies } : {}),
+          },
+          previewCards: cards.slice(0, 8),
+        },
+      ];
+    });
+  }
+
+  private async querySeasonDetails(
+    userId: string,
+    seasonSlug: string,
+    filters: SeasonCollectionFilters,
+    options: {
+      publicOnlyOwned: boolean;
+      canViewQuantities: boolean;
+      canViewCompletion: boolean;
+      includePrivateOwnership: boolean;
+    },
+  ): Promise<SeasonCollectionDetails> {
+    const season = await this.prisma.cardSeason.findFirst({
+      where: { slug: seasonSlug, isActive: true, deletedAt: null },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        code: true,
+        sortOrder: true,
+        _count: {
+          select: {
+            cards: { where: { status: 'published', isActive: true, deletedAt: null } },
+          },
+        },
+        boosters: {
+          where: { status: 'published', isActive: true, deletedAt: null },
+          select: { imageUrl: true },
+          orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+          take: 1,
+        },
+      },
+    });
+    if (!season) {
+      throw new NotFoundException({
+        code: 'COLLECTION_SEASON_NOT_FOUND',
+        message: 'Cette saison est introuvable.',
+      });
+    }
+
+    const ownedRelation = {
+      userCards: { some: { userId, quantity: { gt: 0 } } },
+    };
+    const where: Prisma.CardWhereInput = {
+      seasonId: season.id,
+      status: 'published',
+      isActive: true,
+      deletedAt: null,
+      ...(filters.search
+        ? {
+            OR: [
+              { name: { contains: filters.search, mode: 'insensitive' as const } },
+              { description: { contains: filters.search, mode: 'insensitive' as const } },
+              { effectText: { contains: filters.search, mode: 'insensitive' as const } },
+            ],
+          }
+        : {}),
+      ...(filters.rarity ? { rarity: { slug: filters.rarity } } : {}),
+      ...(filters.type ? { typeLinks: { some: { type: { slug: filters.type } } } } : {}),
+      ...(filters.isCommander === undefined ? {} : { isCommander: filters.isCommander }),
+      ...(options.publicOnlyOwned || filters.owned === true
+        ? { variants: { some: ownedRelation } }
+        : filters.owned === false
+          ? { variants: { none: ownedRelation } }
+          : {}),
+    };
+    const orderBy: Prisma.CardOrderByWithRelationInput[] =
+      filters.sort === 'name'
+        ? [{ name: 'asc' }, { number: 'asc' }]
+        : filters.sort === '-name'
+          ? [{ name: 'desc' }, { number: 'asc' }]
+          : filters.sort === '-number'
+            ? [{ number: 'desc' }]
+            : filters.sort === 'rarity'
+              ? [{ rarity: { sortOrder: 'desc' } }, { number: 'asc' }]
+              : [{ number: 'asc' }];
+    const needsMemorySort =
+      filters.sort === 'recent' || (filters.sort === '-quantity' && options.canViewQuantities);
+    const cardsPromise = this.prisma.card.findMany({
+      where,
+      include: {
+        ...seasonCardInclude,
+        variants: {
+          include: { userCards: { where: { userId, quantity: { gt: 0 } } } },
+          orderBy: [{ displayOrder: 'asc' }, { name: 'asc' }],
+        },
+      },
+      orderBy,
+      ...(needsMemorySort
+        ? {}
+        : { skip: (filters.page - 1) * filters.pageSize, take: filters.pageSize }),
+    });
+    const [ownership, total, rows] = await Promise.all([
+      this.prisma.userCard.findMany({
+        where: {
+          userId,
+          quantity: { gt: 0 },
+          cardVariant: {
+            card: {
+              seasonId: season.id,
+              status: 'published',
+              isActive: true,
+              deletedAt: null,
+            },
+          },
+        },
+        select: { quantity: true, cardVariant: { select: { cardId: true } } },
+      }),
+      this.prisma.card.count({ where }),
+      cardsPromise,
+    ]);
+    let sortableItems = (rows as SeasonCardWithRelations[]).map((card) => ({
+      item: toSeasonCollectionCardItem(
+        card,
+        userId,
+        options.canViewQuantities,
+        options.includePrivateOwnership,
+      ),
+      latestObtainedAt: latestObtainedFromCard(card, userId),
+    }));
+    if (needsMemorySort) {
+      sortableItems.sort((left, right) => {
+        if (filters.sort === '-quantity') {
+          return (
+            (right.item.quantity ?? 0) - (left.item.quantity ?? 0) ||
+            left.item.card.number - right.item.card.number
+          );
+        }
+        return (
+          right.latestObtainedAt - left.latestObtainedAt ||
+          left.item.card.number - right.item.card.number
+        );
+      });
+      sortableItems = sortableItems.slice(
+        (filters.page - 1) * filters.pageSize,
+        filters.page * filters.pageSize,
+      );
+    }
+    const items = sortableItems.map(({ item }) => item);
+
+    const uniqueOwnedCards = new Set(ownership.map(({ cardVariant }) => cardVariant.cardId)).size;
+    const totalCopies = ownership.reduce((sum, row) => sum + row.quantity, 0);
+    const completion = season._count.cards
+      ? Math.round((uniqueOwnedCards / season._count.cards) * 1000) / 10
+      : 0;
+    return {
+      season: {
+        id: season.id,
+        name: season.name,
+        slug: season.slug,
+        code: season.code,
+        imageUrl: season.boosters[0]?.imageUrl ?? null,
+        sortOrder: season.sortOrder,
+      },
+      collection: {
+        uniqueOwnedCards,
+        ...(options.canViewCompletion
+          ? {
+              totalAvailableCards: season._count.cards,
+              completionPercentage: completion,
+            }
+          : {}),
+        ...(options.canViewQuantities ? { totalCopies } : {}),
+      },
+      cards: {
+        data: items,
+        pagination: {
+          page: filters.page,
+          pageSize: filters.pageSize,
+          total,
+          pageCount: Math.ceil(total / filters.pageSize),
+        },
+      },
+    };
+  }
+
+  private async resolvePublicCollection(username: string, viewerId?: string) {
+    const access = await this.accessPolicy.resolve(username, viewerId);
+    if (!access.permissions.canViewCollection) {
+      const friendsOnly = access.preferences.collectionVisibility === 'FRIENDS';
+      throw new ForbiddenException({
+        code: friendsOnly ? 'COLLECTION_FRIENDS_ONLY' : 'COLLECTION_PRIVATE',
+        message: friendsOnly
+          ? 'Cette collection est visible uniquement par les amis de cet utilisateur.'
+          : 'La collection de cet utilisateur est privée.',
+      });
+    }
+    return access;
   }
 
   private async queryPage(userId: string, filters: CollectionFilters, allowQuantitySort: boolean) {
@@ -232,4 +619,55 @@ export class CollectionsService {
       })),
     };
   }
+}
+
+function toSeasonCollectionCardItem(
+  card: SeasonCardWithRelations,
+  userId: string,
+  canViewQuantities: boolean,
+  includePrivateOwnership: boolean,
+): SeasonCollectionCardItem {
+  const ownedVariants = card.variants.flatMap((variant) => {
+    const ownership = variant.userCards.find((row) => row.userId === userId && row.quantity > 0);
+    if (!ownership) return [];
+    return [
+      {
+        cardVariantId: variant.id,
+        name: variant.name,
+        finish: variant.finish,
+        artworkPath: variant.artworkPath,
+        ...(canViewQuantities ? { quantity: ownership.quantity } : {}),
+        ...(includePrivateOwnership
+          ? {
+              lockedQuantity: ownership.lockedQuantity,
+              lastObtainedAt: ownership.lastObtainedAt.toISOString(),
+            }
+          : {}),
+      },
+    ];
+  });
+  const quantity = canViewQuantities
+    ? ownedVariants.reduce((sum, variant) => sum + (variant.quantity ?? 0), 0)
+    : undefined;
+  const lockedQuantity = canViewQuantities
+    ? ownedVariants.reduce((sum, variant) => sum + (variant.lockedQuantity ?? 0), 0)
+    : undefined;
+  return {
+    card: toCard(card),
+    owned: ownedVariants.length > 0,
+    ...(quantity !== undefined ? { quantity } : {}),
+    ...(includePrivateOwnership ? { lockedQuantity } : {}),
+    ownedVariants,
+  };
+}
+
+function latestObtainedFromCard(card: SeasonCardWithRelations, userId: string): number {
+  return Math.max(
+    0,
+    ...card.variants.flatMap((variant) =>
+      variant.userCards
+        .filter((row) => row.userId === userId && row.quantity > 0)
+        .map((row) => row.lastObtainedAt.getTime()),
+    ),
+  );
 }

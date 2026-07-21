@@ -1,10 +1,11 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import type { ProfileUpdateInput } from '@safir/validation';
+import type { ProfileUpdateInput, UpdateProfileBannerInput } from '@safir/validation';
 import { normalizeUsername } from '@safir/validation';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { toUserProfile } from './profile.mapper.js';
 import { AvatarStorageService } from './avatar-storage.service.js';
 import { ProfileStatsService } from './profile-stats.service.js';
+import { BannerStorageService } from './banner-storage.service.js';
 
 const usernameCooldownMs = 30 * 24 * 60 * 60 * 1000;
 
@@ -13,6 +14,7 @@ export class ProfilesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly avatars: AvatarStorageService,
+    private readonly banners: BannerStorageService,
     private readonly profileStats: ProfileStatsService,
   ) {}
 
@@ -91,5 +93,28 @@ export class ProfilesService {
 
   async summary(userId: string) {
     return this.profileStats.legacySummary(userId);
+  }
+
+  async updateBanner(userId: string, input: UpdateProfileBannerInput) {
+    const current = await this.prisma.userProfile.findUnique({ where: { id: userId } });
+    if (!current) {
+      throw new NotFoundException({ code: 'PROFILE_NOT_FOUND', message: 'Profil introuvable.' });
+    }
+    if (input.bannerUrl) await this.banners.verifyOwnedBanner(userId, input.bannerUrl);
+    const profile = await this.prisma.userProfile.update({
+      where: { id: userId },
+      data: {
+        ...(input.bannerUrl !== undefined ? { bannerUrl: input.bannerUrl } : {}),
+        ...(input.bannerPositionY !== undefined ? { bannerPositionY: input.bannerPositionY } : {}),
+      },
+    });
+    if (input.bannerUrl !== undefined && input.bannerUrl !== current.bannerUrl) {
+      await this.banners.remove(current.bannerUrl);
+    }
+    return toUserProfile(profile);
+  }
+
+  removeBanner(userId: string) {
+    return this.updateBanner(userId, { bannerUrl: null, bannerPositionY: 50 });
   }
 }

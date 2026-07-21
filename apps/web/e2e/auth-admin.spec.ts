@@ -64,6 +64,8 @@ const profile = {
   email: e2eEmail,
   displayName: 'Modératrice',
   avatarUrl: null,
+  bannerUrl: null,
+  bannerPositionY: 50,
   bio: null,
   role: 'ADMINISTRATOR',
   roleLabel: 'Administrateur',
@@ -202,6 +204,47 @@ const ownedCollectionEntry = {
     artworkPath: null,
     card: adminCard,
   },
+};
+const ownedSeasonCollectionItem = {
+  card: adminCard,
+  owned: true,
+  quantity: 3,
+  lockedQuantity: 1,
+  ownedVariants: [
+    {
+      cardVariantId: ownedCollectionEntry.cardVariantId,
+      name: 'Standard',
+      finish: 'standard',
+      artworkPath: null,
+      quantity: 3,
+      lockedQuantity: 1,
+      lastObtainedAt: timestamp,
+    },
+  ],
+};
+const unownedSeasonCollectionItem = {
+  card: unownedCatalogCard,
+  owned: false,
+  quantity: 0,
+  lockedQuantity: 0,
+  ownedVariants: [],
+};
+const profileSeasonSummary = {
+  season: {
+    id: season.id,
+    name: season.name,
+    slug: season.slug,
+    code: season.code,
+    imageUrl: 'https://example.com/booster.webp',
+    sortOrder: season.sortOrder,
+  },
+  collection: {
+    uniqueOwnedCards: 1,
+    totalAvailableCards: 2,
+    totalCopies: 3,
+    completionPercentage: 50,
+  },
+  previewCards: [ownedSeasonCollectionItem],
 };
 const booster = {
   id: boosterId,
@@ -378,6 +421,21 @@ async function mockAdminApi(page: Page, actorProfile = profile) {
           sets: [],
         },
       });
+    }
+    if (path.endsWith('/me/collection/seasons/origines')) {
+      return route.fulfill({
+        json: {
+          season: profileSeasonSummary.season,
+          collection: profileSeasonSummary.collection,
+          cards: {
+            data: [ownedSeasonCollectionItem, unownedSeasonCollectionItem],
+            pagination: { page: 1, pageSize: 30, total: 2, pageCount: 1 },
+          },
+        },
+      });
+    }
+    if (path.endsWith('/me/collection/seasons')) {
+      return route.fulfill({ json: [profileSeasonSummary] });
     }
     if (path.endsWith('/me/wallets')) return route.fulfill({ json: [] });
     if (path.endsWith('/me/pack-openings')) {
@@ -786,11 +844,16 @@ test.describe('authenticated administration workflows', () => {
     await page.goto('/profile');
     await expect(page.getByRole('heading', { level: 1, name: 'Modératrice' })).toBeVisible();
     await expect(page.getByRole('heading', { level: 2, name: 'Collection' })).toBeVisible();
-    await expect(page.getByTestId('cards-toolbar')).toBeVisible();
+    await expect(page.getByTestId('cards-toolbar')).toHaveCount(0);
     await expect(page.getByText('Sentinelle E2E')).toBeVisible();
     await expect(page.getByText('× 3')).toBeVisible();
     await expect(page.getByText('Carte non possédée E2E')).toHaveCount(0);
     await expect(page.getByRole('link', { name: 'Collection', exact: true })).toHaveCount(0);
+
+    await page.getByRole('link', { name: 'Explorer la collection de la saison Origines' }).click();
+    await expect(page).toHaveURL(/\/profile\/collection\/origines$/);
+    await expect(page.getByTestId('cards-toolbar')).toBeVisible();
+    await expect(page.getByText('Carte non possédée E2E')).toBeVisible();
 
     await page.goto('/cards');
     await expect(page.getByRole('heading', { level: 1, name: 'Toutes les cartes' })).toBeVisible();

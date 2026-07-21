@@ -124,6 +124,8 @@ model UserProfile {
   email                String
   displayName          String?       @map("display_name") @db.VarChar(50)
   avatarUrl            String?       @map("avatar_url")
+  bannerUrl            String?       @map("banner_url")
+  bannerPositionY      Int           @default(50) @map("banner_position_y") @db.SmallInt
   bio                  String?
   role                 AppRole       @default(USER)
   status               AccountStatus @default(ACTIVE)

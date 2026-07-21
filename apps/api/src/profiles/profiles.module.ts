@@ -5,10 +5,17 @@ import { PreferencesController } from './preferences.controller.js';
 import { PreferencesService } from './preferences.service.js';
 import { AvatarStorageService } from './avatar-storage.service.js';
 import { ProfileStatsService } from './profile-stats.service.js';
+import { BannerStorageService } from './banner-storage.service.js';
 
 @Module({
   controllers: [ProfilesController, PreferencesController],
-  providers: [ProfilesService, PreferencesService, AvatarStorageService, ProfileStatsService],
+  providers: [
+    ProfilesService,
+    PreferencesService,
+    AvatarStorageService,
+    BannerStorageService,
+    ProfileStatsService,
+  ],
   exports: [ProfileStatsService],
 })
 export class ProfilesModule {}

@@ -23,6 +23,7 @@ import { queryKeys } from '@/lib/query-keys';
 import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
 import { useAppStore } from '@/stores/app-store';
 import { useAuth } from '../auth-provider';
+import { ProfileBannerEditor } from './profile-banner-editor';
 
 const allowedAvatarTypes = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const maximumAvatarSize = 5 * 1024 * 1024;
@@ -130,6 +131,7 @@ export function ProfileSettingsForm() {
         title="Profil"
         description="Ces informations composent votre identité dans Safir Pocket."
       />
+      <ProfileBannerEditor profile={profile.data} />
       <form
         className="space-y-5"
         onSubmit={form.handleSubmit((values) => update.mutate(values))}

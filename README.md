@@ -185,7 +185,10 @@ L’application utilise exclusivement un thème clair, y compris lorsque le syst
   administratives vivent exclusivement dans le groupe repliable `Administration` de la navigation
   principale; le drawer mobile réutilise la même configuration et les mêmes permissions.
 - Rayons limités à `sm`, `md` et `lg`, ombres légères et accent saphir unique.
-- Filtres de catalogue et de collection synchronisés avec l’URL et exécutés par l’API.
+- Le profil social associe bannière, avatar superposé, identité, actions et statistiques compactes ;
+  sa collection principale est un aperçu par saison sans filtres avancés.
+- Les filtres de catalogue et des collections saisonnières détaillées sont synchronisés avec l’URL
+  et exécutés par l’API.
 - `next/image` conserve le ratio des cartes; la route `/artwork/card/*` relaie Storage avec la clé anon publique et laisse les policies RLS contrôler la lecture.
 - `prefers-reduced-motion` est respecté; le profil permet aussi une préférence locale de réduction des animations.
 
@@ -195,8 +198,10 @@ Voir [docs/design-system.md](docs/design-system.md) pour les conventions complè
 
 Pages publiques : `/`, `/login`, `/cards`, `/cards/[id]`, `/rankings` et
 `/users/[username]`. Pages authentifiées : `/decks`, `/decks/new`, `/decks/[id]`, `/boosters`,
-`/play`, `/profile` et `/settings/*`. `/profile` regroupe l’identité sociale, les statistiques et la
-collection personnelle; l’ancienne route `/collection` redirige vers sa section Collection.
+`/play`, `/profile`, `/profile/collection/[seasonSlug]` et `/settings/*`. `/profile` regroupe
+l’identité sociale, les statistiques et les aperçus saisonniers de la collection personnelle ;
+`/users/[username]/collection/[seasonSlug]` fournit la vue publique détaillée autorisée. L’ancienne
+route `/collection` redirige vers la section Collection du profil.
 L’espace `/admin` est monté uniquement pour `MODERATOR` et `ADMINISTRATOR`; les permissions de
 chaque endpoint restent la protection autoritaire.
 
@@ -212,6 +217,10 @@ Les endpoints ajoutés pour la refonte sont notamment :
   Commandant et tri serveur ;
 - `GET /api/v1/me/collection` paginé et filtrable, plus `/summary` et `/card/:cardId` ;
 - `GET /api/v1/users/:username/collection` pour les collections publiques autorisées et filtrées ;
+- `GET /api/v1/me/collection/seasons` et
+  `GET /api/v1/users/:username/collection/seasons` pour les résumés et aperçus par saison ;
+- `GET /api/v1/me/collection/seasons/:seasonSlug` et sa variante publique pour la recherche, les
+  filtres de rareté, type, Commandant et possession, le tri et la pagination d’une saison ;
 - `GET /api/v1/me/profile/summary` pour le tableau de bord et le profil ;
 - `GET /api/v1/me/profile/stats` et `GET /api/v1/users/:username/profile-stats` pour les agrégats
   serveur personnels ou publics ;
@@ -219,6 +228,7 @@ Les endpoints ajoutés pour la refonte sont notamment :
 - `GET /api/v1/me/wallets` et `GET /api/v1/me/booster-openings` ;
 - `GET /api/v1/admin/overview` pour les compteurs autorisés.
 - `GET /api/v1/auth/username-availability` et `GET/PATCH /api/v1/me/profile` pour l’identité applicative ;
+- `PATCH/DELETE /api/v1/me/profile/banner` pour valider, cadrer ou retirer la bannière personnelle ;
 - `/api/v1/admin/users` pour recherche, modération, rôles et historique ;
 - `/api/v1/admin/users/:userId` et ses sous-routes `profile`, `email`, `role`, `warnings`, `suspend`, `ban`, `password-reset-email`, `temporary-password`, `moderation-history` et `audit-logs` pour la page dédiée de gestion ;
 - `/api/v1/admin/cards`, `/rarities`, `/seasons` et `/card-types` pour le catalogue relationnel ;
@@ -238,7 +248,9 @@ La migration `20260718090000_user_security_warnings.sql` ajoute les avertissemen
 - Les boosters utilisent 10 000 points de base : six communes garanties puis deux tirages premium indépendants.
 - Les transactions monétaires sont immuables et toutes les ouvertures utilisent un UUID d’idempotence.
 - Les effets stockés sont des identifiants et paramètres JSON validés. Aucun JavaScript en base n’est exécuté.
-- Les uploads sont bornés par bucket, MIME, taille et propriétaire. L’API devra aussi inspecter le contenu réel avant les futurs endpoints d’upload.
+- Les uploads sont bornés par bucket, MIME, taille et propriétaire. La bannière utilise le bucket
+  public `profile-banners`, un dossier par UUID, une limite de 8 Mio et une validation API des
+  octets JPEG, PNG ou WebP avant enregistrement du chemin.
 - Les logs expurgent Authorization, cookies, mots de passe et tokens, et chaque réponse HTTP porte un identifiant de requête.
 
 Voir [docs/security.md](docs/security.md), [docs/administration.md](docs/administration.md) et [AGENTS.md](AGENTS.md).
@@ -287,6 +299,8 @@ Les tests couvrent notamment santé, JWT invalide, contrat du trigger d’inscri
 `/profile`, `/users/[username]` et `/settings/*` couvrent le profil public ou privé, les
 préférences persistées, les amis, les blocages et le cycle volontaire du compte. La migration
 `20260719110000_personal_space_social_account_lifecycle.sql` ajoute les tables et champs associés.
+La migration additive `20260721200000_profile_social_banners.sql` ajoute `banner_url`,
+`banner_position_y`, sa contrainte de 0 à 100 et les policies du bucket `profile-banners`.
 La suppression est programmée avec 30 jours de grâce; le traitement final pseudonymise les
 historiques nécessaires et supprime Supabase Auth en dernier.
 

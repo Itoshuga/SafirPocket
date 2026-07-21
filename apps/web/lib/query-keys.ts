@@ -13,6 +13,17 @@ export const profileQueryKeys = {
     [...profileRoot, 'public', username.toLocaleLowerCase('fr'), 'stats'] as const,
   collection: (username: string, filters: string) =>
     [...profileRoot, 'public', username.toLocaleLowerCase('fr'), 'collection', filters] as const,
+  seasonCollections: (username: string) =>
+    [...profileRoot, username.toLocaleLowerCase('fr'), 'collection', 'seasons'] as const,
+  seasonCollection: (username: string, seasonSlug: string, filters: string) =>
+    [
+      ...profileRoot,
+      username.toLocaleLowerCase('fr'),
+      'collection',
+      'seasons',
+      seasonSlug,
+      filters,
+    ] as const,
 } as const;
 
 export const queryKeys = {
@@ -38,6 +49,8 @@ export const queryKeys = {
   publicProfile: profileQueryKeys.public,
   publicProfileStats: profileQueryKeys.publicStats,
   publicProfileCollection: profileQueryKeys.collection,
+  profileSeasonCollections: profileQueryKeys.seasonCollections,
+  profileSeasonCollection: profileQueryKeys.seasonCollection,
   userSearch: (filters: string) => ['user-search', filters] as const,
   friends: ['friends'] as const,
   friendRequestsReceived: ['friend-requests', 'received'] as const,

@@ -247,7 +247,7 @@ export class AccountService {
     let failed = 0;
     for (const profile of due) {
       try {
-        await this.auth.removeAvatars(profile.id);
+        await this.auth.removeProfileMedia(profile.id);
         await this.anonymize(profile.id);
         await this.auth.deleteAuthUser(profile.id);
         const accountHash = createHash('sha256').update(profile.id).digest('hex');
@@ -306,6 +306,8 @@ export class AccountService {
           email: `${suffix}@deleted.invalid`,
           displayName: null,
           avatarUrl: null,
+          bannerUrl: null,
+          bannerPositionY: 50,
           bio: null,
           role: 'USER',
           mustChangePassword: false,

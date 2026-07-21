@@ -8,12 +8,18 @@
 - `ACTIVE` autorise la session, `SUSPENDED` la bloque jusqu’à réactivation ou expiration, et `BANNED` la bloque sans échéance. Une expiration automatique écrit la modération et l’audit dans la même transaction.
 - Les permissions sont centralisées dans `apps/api/src/common/auth/permissions.ts`. `MODERATOR` gère les comptes USER/PIONEER et le catalogue sans suppression définitive. `ADMINISTRATOR` gère aussi les rôles, restaurations, suppressions définitives et journaux d’audit.
 - Un acteur ne peut jamais se modérer lui-même. Un modérateur ne peut pas agir sur un modérateur ou administrateur, et le dernier administrateur actif ne peut pas perdre son accès.
-- Les clients authentifiés ne peuvent modifier que `username`, `display_name`, `avatar_url` et `bio` de leur propre profil. Rôle, statut, e-mail, suspension et historique restent serveur uniquement.
+- Les clients authentifiés ne peuvent modifier que `username`, `display_name`, `avatar_url`,
+  `banner_url`, `banner_position_y` et `bio` de leur propre profil. Rôle, statut, e-mail,
+  suspension et historique restent serveur uniquement.
 - La configuration pondérée des boosters n’est pas exposée par RLS. Le tirage utilise une source aléatoire cryptographique et une transaction sérialisable.
 - Les taux premium sont des points de base entiers totalisant exactement 10 000. Les six positions communes, les deux positions premium, le débit éventuel, l’historique et les `upsert` de collection sont atomiques.
 - Le bucket `booster-designs` est public en lecture, borné en taille et MIME, mais ses écritures sont réservées aux rôles privilégiés. Aucune image binaire n’est stockée dans PostgreSQL.
 - Les événements de match sont produits par le moteur serveur et versionnés; le navigateur n’envoie que des intentions validées.
 - Les uploads sont limités par bucket, taille, extension et ownership. L’application doit également vérifier le contenu MIME réel avant tout upload privilégié.
+- Le bucket public `profile-banners` limite chaque objet à 8 Mio et aux formats JPEG, PNG et WebP.
+  Les policies imposent le dossier `auth.uid()` pour toute écriture. Avant de persister le chemin,
+  NestJS contrôle le propriétaire, le MIME déclaré, la taille et les octets de signature; une
+  bannière privée ou appartenant à un autre UUID est refusée.
 - Les modifications administratives sont transactionnelles et écrivent un audit avec acteur, entité, action, états avant/après et identifiant de requête. Les tables de modération, d’audit et de rapport de migration ne sont pas accessibles directement aux rôles client.
 - `user_warnings` est append-only du point de vue métier : un avertissement est révoqué, jamais supprimé. Sa raison, sa sévérité, son auteur et sa révocation sont auditables; RLS retire tout accès direct aux rôles `anon` et `authenticated`.
 - La clé `SUPABASE_SERVICE_ROLE_KEY` n'est chargée que dans `apps/api`. Le frontend ne reçoit jamais cette clé, un token de reset ou une valeur de mot de passe.
@@ -26,6 +32,9 @@
   vérifie propriétaire, amitié et blocages avant toute statistique ou collection publique; les
   quantités exactes et la progression ont leurs propres préférences. Les quantités réservées ne
   sont jamais retournées par l'endpoint public.
+- Les résumés et détails saisonniers publics passent par le même `ProfileAccessPolicyService`.
+  Les saisons vides sont masquées publiquement, et les quantités, dates d’obtention et pourcentages
+  restent absents lorsque les préférences correspondantes les interdisent.
 - Les demandes d'amis, acceptations et blocages sont transactionnels. Un index de paire empêche les
   demandes inversées simultanées; un blocage annule les demandes et l'amitié sans notifier la cible.
 - La désactivation volontaire reste distincte de `SUSPENDED` et `BANNED`. Les routes de

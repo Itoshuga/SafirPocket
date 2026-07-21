@@ -10,6 +10,8 @@ const baseProfile = {
   email: 'user@example.com',
   displayName: 'Safir User',
   avatarUrl: null,
+  bannerUrl: null as string | null,
+  bannerPositionY: 50,
   bio: null,
   role: 'USER' as const,
   status: 'ACTIVE' as const,
@@ -37,11 +39,18 @@ function setup(profile = baseProfile) {
     },
   };
   const avatars = { verifyOwnedAvatar: vi.fn(), remove: vi.fn() };
+  const banners = { verifyOwnedBanner: vi.fn(), remove: vi.fn() };
   const stats = { legacySummary: vi.fn() };
   return {
-    service: new ProfilesService(prisma as never, avatars as never, stats as never),
+    service: new ProfilesService(
+      prisma as never,
+      avatars as never,
+      banners as never,
+      stats as never,
+    ),
     prisma,
     avatars,
+    banners,
   };
 }
 
@@ -89,5 +98,19 @@ describe('ProfilesService', () => {
     const path = `${baseProfile.id}/avatar.webp`;
     await service.updateMe(baseProfile.id, { avatarUrl: path });
     expect(avatars.verifyOwnedAvatar).toHaveBeenCalledWith(baseProfile.id, path);
+  });
+
+  it('verifies a banner before persisting it and removes the replaced object', async () => {
+    const currentPath = `${baseProfile.id}/old-banner.webp`;
+    const nextPath = `${baseProfile.id}/new-banner.webp`;
+    const { service, banners } = setup({ ...baseProfile, bannerUrl: currentPath });
+
+    await service.updateBanner(baseProfile.id, {
+      bannerUrl: nextPath,
+      bannerPositionY: 72,
+    });
+
+    expect(banners.verifyOwnedBanner).toHaveBeenCalledWith(baseProfile.id, nextPath);
+    expect(banners.remove).toHaveBeenCalledWith(currentPath);
   });
 });

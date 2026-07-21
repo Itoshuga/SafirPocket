@@ -1,9 +1,9 @@
 'use client';
 
 import type { FriendshipStatus, ProfilePermissions } from '@safir/shared-types';
-import { Badge, Button, ConfirmDialog } from '@safir/ui';
+import { Badge, Button, ConfirmDialog, DropdownMenu } from '@safir/ui';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Ban, Check, UserMinus, UserPlus } from 'lucide-react';
+import { Ban, Check, Copy, MoreHorizontal, UserMinus, UserPlus, X } from 'lucide-react';
 import Link from 'next/link';
 import { useState } from 'react';
 import { apiFetch } from '@/lib/api-client';
@@ -62,6 +62,10 @@ export function ProfileSocialActions({
   }
 
   const run = (path: string, method?: 'POST' | 'DELETE') => mutation.mutate({ path, method });
+  const copyLink = () => {
+    const url = `${window.location.origin}/users/${encodedUsername}`;
+    void navigator.clipboard.writeText(url).then(() => notify('Lien du profil copié.', 'success'));
+  };
   return (
     <>
       {status === 'NONE' && permissions.canSendFriendRequest ? (
@@ -75,13 +79,27 @@ export function ProfileSocialActions({
       ) : null}
       {status === 'PENDING_SENT' ? <Badge>Demande envoyée</Badge> : null}
       {status === 'PENDING_RECEIVED' ? (
-        <Button
-          size="sm"
-          disabled={mutation.isPending}
-          onClick={() => run(`/api/v1/users/by-username/${encodedUsername}/friend-request/accept`)}
-        >
-          <Check className="size-4" /> Accepter la demande
-        </Button>
+        <>
+          <Button
+            size="sm"
+            disabled={mutation.isPending}
+            onClick={() =>
+              run(`/api/v1/users/by-username/${encodedUsername}/friend-request/accept`)
+            }
+          >
+            <Check className="size-4" /> Accepter
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={mutation.isPending}
+            onClick={() =>
+              run(`/api/v1/users/by-username/${encodedUsername}/friend-request/decline`)
+            }
+          >
+            <X className="size-4" /> Refuser
+          </Button>
+        </>
       ) : null}
       {status === 'FRIENDS' ? (
         <Button
@@ -103,16 +121,23 @@ export function ProfileSocialActions({
           Débloquer
         </Button>
       ) : null}
-      {permissions.canBlock ? (
-        <Button
-          variant="ghost"
-          size="sm"
-          disabled={mutation.isPending}
-          onClick={() => setConfirmation('block')}
-        >
-          <Ban className="size-4" /> Bloquer
-        </Button>
-      ) : null}
+      <DropdownMenu.Root>
+        <DropdownMenu.Trigger asChild>
+          <Button variant="ghost" size="icon" aria-label="Actions secondaires du profil">
+            <MoreHorizontal className="size-4" />
+          </Button>
+        </DropdownMenu.Trigger>
+        <DropdownMenu.Content align="end">
+          <DropdownMenu.Item onSelect={copyLink}>
+            <Copy className="size-4" /> Copier le lien
+          </DropdownMenu.Item>
+          {permissions.canBlock ? (
+            <DropdownMenu.Item onSelect={() => setConfirmation('block')}>
+              <Ban className="size-4" /> Bloquer
+            </DropdownMenu.Item>
+          ) : null}
+        </DropdownMenu.Content>
+      </DropdownMenu.Root>
       <ConfirmDialog
         open={confirmation !== null}
         onOpenChange={(open) => !open && setConfirmation(null)}

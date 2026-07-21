@@ -148,6 +148,8 @@ export interface PublicUser {
 }
 
 export interface UserProfile extends PublicUser {
+  bannerUrl: string | null;
+  bannerPositionY: number;
   normalizedUsername: string;
   email: string;
   roleLabel: string;
@@ -225,6 +227,8 @@ export interface ProfileIdentity {
   username: string;
   displayName: string | null;
   avatarUrl: string | null;
+  bannerUrl: string | null;
+  bannerPositionY: number;
   bio: string | null;
   role: AppRole;
   roleLabel: string;
@@ -243,6 +247,23 @@ export interface ProfilePageData {
 export interface PublicUserProfile extends ProfileIdentity {
   friendship: { status: FriendshipStatus };
   permissions: ProfilePermissions;
+}
+
+export type ProfileSocialStats = ProfileStats;
+
+export interface ProfileBannerData {
+  bannerUrl: string | null;
+  bannerPositionY: number;
+}
+
+export interface SocialProfileData extends ProfileIdentity {
+  friendshipStatus: FriendshipStatus;
+  friendsCount: number;
+}
+
+export interface UpdateProfileBannerInput {
+  bannerUrl?: string | null;
+  bannerPositionY?: number;
 }
 
 export interface FriendUser {
@@ -793,6 +814,60 @@ export interface ProfileCollectionItem {
 }
 
 export type ProfileCollectionFilters = CardsListFilters;
+
+export type SeasonCollectionSort =
+  'recent' | 'number' | '-number' | 'name' | '-name' | 'rarity' | '-quantity';
+
+export interface SeasonCollectionFilters extends PaginationQuery {
+  search?: string;
+  rarity?: string;
+  type?: string;
+  isCommander?: boolean;
+  owned?: boolean;
+  sort?: SeasonCollectionSort;
+}
+
+export interface SeasonCollectionOwnedVariant {
+  cardVariantId: string;
+  name: string;
+  finish: string;
+  artworkPath: string | null;
+  quantity?: number;
+  lockedQuantity?: number;
+  lastObtainedAt?: string;
+}
+
+export interface SeasonCollectionCardItem {
+  card: CardSummary;
+  owned: boolean;
+  quantity?: number;
+  lockedQuantity?: number;
+  ownedVariants: SeasonCollectionOwnedVariant[];
+}
+
+export interface ProfileSeasonCollectionSummary {
+  season: {
+    id: string;
+    name: string;
+    slug: string;
+    code: string | null;
+    imageUrl: string | null;
+    sortOrder: number;
+  };
+  collection: {
+    uniqueOwnedCards: number;
+    totalAvailableCards?: number;
+    totalCopies?: number;
+    completionPercentage?: number;
+  };
+  previewCards: SeasonCollectionCardItem[];
+}
+
+export interface SeasonCollectionDetails {
+  season: ProfileSeasonCollectionSummary['season'];
+  collection: ProfileSeasonCollectionSummary['collection'];
+  cards: PaginatedResponse<SeasonCollectionCardItem>;
+}
 
 export interface CollectionSummary {
   totalCopies: number;

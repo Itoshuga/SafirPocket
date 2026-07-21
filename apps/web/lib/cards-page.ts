@@ -2,6 +2,7 @@ import type { CardsPageMode, CatalogCardsSort, CollectionCardsSort } from '@safi
 
 export type CardsLayout = 'grid' | 'list';
 export type CommanderFilter = '' | 'true' | 'false';
+export type OwnershipFilter = '' | 'true' | 'false';
 
 export interface CardsPageUrlState {
   page: number;
@@ -10,6 +11,7 @@ export interface CardsPageUrlState {
   rarity: string;
   type: string;
   commander: CommanderFilter;
+  owned: OwnershipFilter;
   sort: CatalogCardsSort | CollectionCardsSort;
 }
 
@@ -61,6 +63,10 @@ export function readCardsPageUrlState(
     type: params.get('type') ?? '',
     commander:
       requestedCommander === 'true' || requestedCommander === 'false' ? requestedCommander : '',
+    owned:
+      !catalogMode && (params.get('owned') === 'true' || params.get('owned') === 'false')
+        ? (params.get('owned') as OwnershipFilter)
+        : '',
     sort: sort as CatalogCardsSort | CollectionCardsSort,
   };
 }
@@ -89,9 +95,12 @@ export function buildCardsApiQuery(state: CardsPageUrlState, pageSize: number): 
   if (state.rarity) query.set('rarity', state.rarity);
   if (state.type) query.set('type', state.type);
   if (state.commander) query.set('isCommander', state.commander);
+  if (state.owned) query.set('owned', state.owned);
   return query.toString();
 }
 
 export function hasCardsFilters(state: CardsPageUrlState): boolean {
-  return Boolean(state.search || state.season || state.rarity || state.type || state.commander);
+  return Boolean(
+    state.search || state.season || state.rarity || state.type || state.commander || state.owned,
+  );
 }

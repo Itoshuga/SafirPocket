@@ -19,6 +19,8 @@ export function toUserProfile(profile: DatabaseUserProfile): UserProfile {
     email: profile.email,
     displayName: profile.displayName,
     avatarUrl: profile.avatarUrl,
+    bannerUrl: profile.bannerUrl,
+    bannerPositionY: profile.bannerPositionY,
     bio: profile.bio,
     role: profile.role,
     roleLabel: ROLE_LABELS[profile.role],

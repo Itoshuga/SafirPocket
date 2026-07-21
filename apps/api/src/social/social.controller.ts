@@ -46,6 +46,16 @@ export class SocialController {
     return this.social.acceptByUsername(user.id, parseInput(usernameSchema, username));
   }
 
+  @Post('users/by-username/:username/friend-request/decline')
+  declineByUsername(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('username') username: string,
+    @Body() body: unknown,
+  ) {
+    parseInput(friendActionSchema, body ?? {});
+    return this.social.declineByUsername(user.id, parseInput(usernameSchema, username));
+  }
+
   @Delete('users/by-username/:username/friendship')
   removeFriendByUsername(
     @CurrentUser() user: AuthenticatedUser,

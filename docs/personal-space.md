@@ -2,10 +2,13 @@
 
 ## Routes web
 
-- `/profile` presente le profil propre, son role, les statistiques calculees par l'API et la
-  collection personnelle complete.
-- `/users/[username]` reprend la meme structure sociale et ajoute uniquement la collection publique
-  autorisee.
+- `/profile` presente la banniere, l'avatar superpose, l'identite, les actions, les statistiques
+  compactes et un apercu de collection organise par saison.
+- `/users/[username]` reprend la meme structure sociale et ajoute uniquement les saisons non vides
+  de la collection publique autorisee.
+- `/profile/collection/[seasonSlug]` et `/users/[username]/collection/[seasonSlug]` affichent la
+  grille complete d'une saison. Recherche, filtres, tri et pagination vivent uniquement dans ces
+  vues detaillees.
 - `/collection` est une redirection de compatibilite vers `/profile#collection` et ne contient plus
   d'implementation concurrente.
 - `/settings/profile`, `/settings/privacy`, `/settings/notifications`, `/settings/account` et
@@ -27,6 +30,15 @@ les 30 jours grace a `username_changed_at`; l'acces PostgREST ne peut pas contou
 La biographie est limitee a 300 caracteres par Zod et par l'API. Les avatars JPEG, PNG ou WebP de
 5 Mo maximum utilisent le bucket `avatars`, un dossier par UUID et les policies Storage existantes.
 
+La migration `20260721200000_profile_social_banners.sql` ajoute `banner_url` et
+`banner_position_y`, contraint entre 0 et 100 avec une valeur par defaut de 50. Les fichiers sont
+stockes dans le bucket public `profile-banners`, jamais dans PostgreSQL. Chaque objet appartient au
+dossier de l'UUID Auth, accepte JPEG, PNG ou WebP et reste limite a 8 Mio. Le navigateur envoie le
+fichier avec le JWT Supabase; l'API verifie ensuite le chemin proprietaire, les metadonnees et la
+signature binaire avant de conserver le chemin. Un remplacement supprime l'ancien objet seulement
+apres la mise a jour du profil. La suppression de compte retire les avatars et bannieres avant
+l'anonymisation.
+
 Les e-mails de securite essentiels restent obligatoires. Les autres preferences preparent les futurs
 producteurs de notifications sans simuler un systeme d'envoi qui n'existe pas encore.
 
@@ -44,11 +56,26 @@ jamais e-mail, statut de moderation, avertissement, identifiant Auth, preference
 Les statistiques sont chargees separement par `GET /api/v1/users/:username/profile-stats` et sont
 omises selon les preferences de collection et de jeu.
 
-`GET /api/v1/users/:username/collection` applique recherche, saison, rarete, type, Commandant, tri
-et pagination cote serveur. `ProfileAccessPolicyService` centralise l'acces au profil, aux
+`GET /api/v1/users/:username/collection` conserve le contrat historique. Les profils utilisent
+`GET /api/v1/me/collection/seasons` ou
+`GET /api/v1/users/:username/collection/seasons` pour obtenir les agregats et huit cartes maximum
+par saison. L'apercu suit un ordre stable : rarete decroissante, numero de collection croissant,
+puis ordre de variante. Le premier booster publie et actif par `sort_order`, puis par nom, fournit
+le visuel; aucun booster n'est choisi aleatoirement. Le profil propre conserve les saisons vides,
+alors que le profil public les masque.
+
+Les endpoints `GET /api/v1/me/collection/seasons/:seasonSlug` et leur variante publique appliquent
+recherche, rarete, type, Commandant, possession personnelle, tri et pagination cote serveur.
+L'action visible des blocs s'appelle `Explorer la collection`. `ProfileAccessPolicyService`
+centralise l'acces au profil, aux
 statistiques, a la collection, aux quantites et aux demandes d'amis. Une collection `FRIENDS`
 exige une ligne d'amitie effective; une demande en attente ne suffit pas. L'endpoint public ne
 retourne jamais les quantites reservees ni les dates d'obtention.
+
+Les familles TanStack Query `profileQueryKeys.seasonCollections(username)` et
+`profileQueryKeys.seasonCollection(username, seasonSlug, filters)` separent les resumes, les pages
+detaillees, le proprietaire et les profils publics. Les mutations d'inventaire invalident la racine
+profil et collection, sans recharger le reste de l'application.
 
 `GET /api/v1/users/search` exige une session, au moins deux caracteres, une pagination bornee a 50
 et un rate limit dedie. Les comptes desactives, supprimes, masques par
@@ -76,6 +103,12 @@ GET    /api/v1/me/friends
 GET    /api/v1/me/friend-requests
 GET    /api/v1/me/friend-requests/sent
 POST   /api/v1/users/:userId/friend-request
+POST   /api/v1/users/by-username/:username/friend-request
+POST   /api/v1/users/by-username/:username/friend-request/accept
+POST   /api/v1/users/by-username/:username/friend-request/decline
+DELETE /api/v1/users/by-username/:username/friendship
+POST   /api/v1/users/by-username/:username/block
+DELETE /api/v1/users/by-username/:username/block
 POST   /api/v1/me/friend-requests/:requestId/accept
 POST   /api/v1/me/friend-requests/:requestId/decline
 DELETE /api/v1/me/friend-requests/:requestId

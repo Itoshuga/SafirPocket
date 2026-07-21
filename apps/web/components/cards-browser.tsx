@@ -17,7 +17,15 @@ import {
 import { Grid3X3, Layers3, List, LoaderCircle, RotateCcw, SlidersHorizontal } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { useCallback, useDeferredValue, useEffect, useMemo, useState, type ReactNode } from 'react';
+import {
+  useCallback,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 import {
   buildCardsApiQuery,
   hasCardsFilters,
@@ -46,28 +54,40 @@ export function useCardsPageFilters({ mode, pageSize }: { mode: CardsPageMode; p
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const latestSearchParams = useRef(searchParams.toString());
   const state = useMemo(
     () => readCardsPageUrlState(new URLSearchParams(searchParams.toString()), mode),
     [mode, searchParams],
   );
   const [search, setSearch] = useState(state.search);
+  const latestSearch = useRef(state.search);
   const deferredSearch = useDeferredValue(search);
+  const changeSearch = useCallback((value: string) => {
+    latestSearch.current = value;
+    setSearch(value);
+  }, []);
 
   const update = useCallback(
     (values: Partial<Record<keyof CardsPageUrlState, string | number | null>>) => {
-      const query = updateCardsSearchParams(new URLSearchParams(searchParams.toString()), values);
+      const query = updateCardsSearchParams(new URLSearchParams(latestSearchParams.current), {
+        search: latestSearch.current || null,
+        ...values,
+      });
+      latestSearchParams.current = query;
       router.replace(`${pathname}${query ? `?${query}` : ''}`, { scroll: false });
     },
-    [pathname, router, searchParams],
+    [pathname, router],
   );
 
   useEffect(() => {
     const syncSearchFromHistory = () => {
-      setSearch(new URLSearchParams(window.location.search).get('search') ?? '');
+      const next = new URLSearchParams(window.location.search);
+      latestSearchParams.current = next.toString();
+      changeSearch(next.get('search') ?? '');
     };
     window.addEventListener('popstate', syncSearchFromHistory);
     return () => window.removeEventListener('popstate', syncSearchFromHistory);
-  }, []);
+  }, [changeSearch]);
   useEffect(() => {
     if (deferredSearch === state.search) return;
     update({ search: deferredSearch || null, page: 1 });
@@ -76,7 +96,7 @@ export function useCardsPageFilters({ mode, pageSize }: { mode: CardsPageMode; p
   const queryState = { ...state, search: deferredSearch };
   const queryString = buildCardsApiQuery(queryState, pageSize);
   const reset = useCallback(() => {
-    setSearch('');
+    changeSearch('');
     update({
       page: 1,
       search: null,
@@ -84,14 +104,15 @@ export function useCardsPageFilters({ mode, pageSize }: { mode: CardsPageMode; p
       rarity: null,
       type: null,
       commander: null,
+      owned: null,
       sort: null,
     });
-  }, [update]);
+  }, [changeSearch, update]);
 
   return {
     state: queryState,
     search,
-    setSearch,
+    setSearch: changeSearch,
     update,
     reset,
     queryString,
@@ -111,6 +132,8 @@ interface CardsToolbarProps {
   onUpdate: (values: Partial<Record<keyof CardsPageUrlState, string | number | null>>) => void;
   onReset: () => void;
   onLayoutChange: (layout: CardsLayout) => void;
+  showSeasonFilter?: boolean;
+  showOwnershipFilter?: boolean;
 }
 
 export function CardsToolbar({
@@ -125,6 +148,8 @@ export function CardsToolbar({
   onUpdate,
   onReset,
   onLayoutChange,
+  showSeasonFilter = true,
+  showOwnershipFilter = false,
 }: CardsToolbarProps) {
   const activeFilters = [
     state.season
@@ -151,25 +176,33 @@ export function CardsToolbar({
           label: state.commander === 'true' ? 'Commandants' : 'Non-commandants',
         }
       : null,
+    state.owned
+      ? {
+          key: 'owned' as const,
+          label: state.owned === 'true' ? 'Cartes possédées' : 'Cartes manquantes',
+        }
+      : null,
   ].filter((filter): filter is NonNullable<typeof filter> => Boolean(filter));
 
   const filterControls = (
     <div className="grid gap-4 lg:grid-cols-4">
-      <label className="text-sm font-medium">
-        Saison
-        <Select
-          className="mt-1.5"
-          value={state.season}
-          onChange={(event) => onUpdate({ season: event.target.value || null, page: 1 })}
-        >
-          <option value="">Toutes les saisons</option>
-          {facets?.seasons.map((item) => (
-            <option key={item.id} value={item.slug}>
-              {item.name} ({item.cardCount ?? 0})
-            </option>
-          ))}
-        </Select>
-      </label>
+      {showSeasonFilter ? (
+        <label className="text-sm font-medium">
+          Saison
+          <Select
+            className="mt-1.5"
+            value={state.season}
+            onChange={(event) => onUpdate({ season: event.target.value || null, page: 1 })}
+          >
+            <option value="">Toutes les saisons</option>
+            {facets?.seasons.map((item) => (
+              <option key={item.id} value={item.slug}>
+                {item.name} ({item.cardCount ?? 0})
+              </option>
+            ))}
+          </Select>
+        </label>
+      ) : null}
       <label className="text-sm font-medium">
         Rareté
         <Select
@@ -185,6 +218,20 @@ export function CardsToolbar({
           ))}
         </Select>
       </label>
+      {showOwnershipFilter ? (
+        <label className="text-sm font-medium">
+          Possession
+          <Select
+            className="mt-1.5"
+            value={state.owned}
+            onChange={(event) => onUpdate({ owned: event.target.value || null, page: 1 })}
+          >
+            <option value="">Toutes les cartes</option>
+            <option value="true">Possédées</option>
+            <option value="false">Non possédées</option>
+          </Select>
+        </label>
+      ) : null}
       <label className="text-sm font-medium">
         Type
         <Select

@@ -62,8 +62,15 @@ export class SupabaseAccountAuthService {
     if (error) this.rethrow(error);
   }
 
-  async removeAvatars(userId: string): Promise<void> {
-    const bucket = this.admin.storage.from('avatars');
+  async removeProfileMedia(userId: string): Promise<void> {
+    await Promise.all([
+      this.removeStorageFolder('avatars', userId),
+      this.removeStorageFolder('profile-banners', userId),
+    ]);
+  }
+
+  private async removeStorageFolder(bucketName: string, userId: string): Promise<void> {
+    const bucket = this.admin.storage.from(bucketName);
     const { data, error } = await bucket.list(userId, { limit: 100 });
     if (error) this.rethrow(error);
     const paths = (data ?? []).map(({ name }) => `${userId}/${name}`);

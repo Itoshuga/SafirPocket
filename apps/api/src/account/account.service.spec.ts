@@ -20,6 +20,8 @@ const profile = {
   email: 'user@example.com',
   displayName: null,
   avatarUrl: null,
+  bannerUrl: null,
+  bannerPositionY: 50,
   bio: null,
   role: 'USER' as const,
   status: 'ACTIVE' as 'ACTIVE' | 'SUSPENDED' | 'BANNED',
@@ -54,6 +56,8 @@ function setup(current = profile) {
     requestReauthentication: vi.fn(),
     updateEmail: vi.fn(),
     updatePassword: vi.fn(),
+    removeProfileMedia: vi.fn(),
+    deleteAuthUser: vi.fn(),
   };
   return { service: new AccountService(prisma as never, auth as never), transaction, auth };
 }
