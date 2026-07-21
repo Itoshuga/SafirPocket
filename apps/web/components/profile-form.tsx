@@ -4,7 +4,6 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import type { ProfileSummary, UserProfile } from '@safir/shared-types';
 import {
   Avatar,
-  Badge,
   Button,
   Card,
   ErrorState,
@@ -23,6 +22,7 @@ import { ApiClientError, apiFetch } from '@/lib/api-client';
 import { publicEnv } from '@/lib/env';
 import { queryKeys } from '@/lib/query-keys';
 import { useAppStore } from '@/stores/app-store';
+import { UserRoleBadge } from './user-role-badge';
 
 function avatarUrl(path: string | null) {
   if (!path) return null;
@@ -78,7 +78,9 @@ function ProfileEditor({ profile }: { profile: UserProfile }) {
           />
           <div>
             <p className="font-semibold">{profile.displayName ?? profile.username}</p>
-            <Badge className="mt-1">{profile.roleLabel}</Badge>
+            <span className="mt-1 block">
+              <UserRoleBadge role={profile.role} />
+            </span>
             {profile.createdAt ? (
               <p className="mt-2 text-xs text-muted-foreground">
                 Membre depuis le{' '}

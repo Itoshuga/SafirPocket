@@ -41,7 +41,7 @@ describe('CollectionsService', () => {
         ]),
       },
     };
-    const service = new CollectionsService(prisma as never);
+    const service = new CollectionsService(prisma as never, {} as never);
     await expect(service.summary(crypto.randomUUID())).resolves.toEqual({
       totalCopies: 6,
       uniqueVariants: 3,
@@ -72,7 +72,7 @@ describe('CollectionsService', () => {
       },
       $transaction: (operations: Array<Promise<unknown>>) => Promise.all(operations),
     };
-    const service = new CollectionsService(prisma as never);
+    const service = new CollectionsService(prisma as never, {} as never);
     await service.list(crypto.randomUUID(), {
       page: 2,
       pageSize: 10,
@@ -99,6 +99,80 @@ describe('CollectionsService', () => {
             }),
           },
         }),
+      }),
+    );
+  });
+
+  it('returns a public collection without quantities or locked ownership data', async () => {
+    const now = new Date('2026-07-21T10:00:00.000Z');
+    const row = {
+      userId: crypto.randomUUID(),
+      cardVariantId: 'variant-a',
+      quantity: 4,
+      lockedQuantity: 2,
+      firstObtainedAt: now,
+      lastObtainedAt: now,
+      cardVariant: {
+        id: 'variant-a',
+        cardId: 'card-a',
+        name: 'Standard',
+        slug: 'standard',
+        finish: 'standard',
+        artworkPath: null,
+        displayOrder: 0,
+        createdAt: now,
+        updatedAt: now,
+        card: {
+          id: 'card-a',
+          setId: null,
+          name: 'Carte A',
+          slug: 'carte-a',
+          number: 1,
+          collectionNumber: '1',
+          attack: 1,
+          defense: 1,
+          value: 1,
+          description: null,
+          imageUrl: null,
+          artworkPath: null,
+          isCommander: false,
+          cost: 1,
+          status: 'published',
+          isActive: true,
+          createdAt: now,
+          updatedAt: now,
+          deletedAt: null,
+          rarity: { id: 'rarity', name: 'Rare', slug: 'rare', displayColor: null },
+          season: { id: 'season', name: 'Origines', slug: 'origines', code: 'ORI' },
+          typeLinks: [],
+          set: null,
+        },
+      },
+    };
+    const prisma = {
+      userCard: {
+        findMany: vi.fn().mockResolvedValue([row]),
+        count: vi.fn().mockResolvedValue(1),
+      },
+      $transaction: (operations: Array<Promise<unknown>>) => Promise.all(operations),
+    };
+    const access = {
+      resolve: vi.fn().mockResolvedValue({
+        profile: { id: row.userId },
+        preferences: { collectionVisibility: 'PUBLIC' },
+        permissions: { canViewCollection: true, canViewQuantities: false },
+      }),
+    };
+    const result = await new CollectionsService(prisma as never, access as never).publicList(
+      'lucas',
+      undefined,
+      { page: 1, pageSize: 30, sort: '-quantity' },
+    );
+    expect(result.data[0]).not.toHaveProperty('quantity');
+    expect(result.data[0]).not.toHaveProperty('lockedQuantity');
+    expect(prisma.userCard.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        orderBy: [{ cardVariant: { card: { number: 'asc' } } }, { lastObtainedAt: 'desc' }],
       }),
     );
   });

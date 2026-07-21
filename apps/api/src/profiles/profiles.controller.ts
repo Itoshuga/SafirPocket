@@ -5,10 +5,14 @@ import type { AuthenticatedUser } from '../common/auth/auth.types.js';
 import { parseInput } from '../common/errors/zod.js';
 import { AllowDeactivated } from '../common/auth/allow-deactivated.decorator.js';
 import { ProfilesService } from './profiles.service.js';
+import { ProfileStatsService } from './profile-stats.service.js';
 
 @Controller('api/v1/me/profile')
 export class ProfilesController {
-  constructor(private readonly profiles: ProfilesService) {}
+  constructor(
+    private readonly profiles: ProfilesService,
+    private readonly profileStats: ProfileStatsService,
+  ) {}
 
   @Get()
   @AllowDeactivated()
@@ -23,7 +27,7 @@ export class ProfilesController {
 
   @Get('stats')
   stats(@CurrentUser() user: AuthenticatedUser) {
-    return this.profiles.summary(user.id);
+    return this.profileStats.get(user.id);
   }
 
   @Patch()

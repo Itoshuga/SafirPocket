@@ -5,6 +5,7 @@ export const idSchema = z.uuid();
 export const appRoleSchema = z.enum(['USER', 'PIONEER', 'MODERATOR', 'ADMINISTRATOR']);
 export const accountStatusSchema = z.enum(['ACTIVE', 'SUSPENDED', 'BANNED']);
 export const profileVisibilitySchema = z.enum(['PUBLIC', 'PRIVATE']);
+export const collectionVisibilitySchema = z.enum(['PUBLIC', 'FRIENDS', 'PRIVATE']);
 
 export const usernameSchema = z
   .string()
@@ -59,10 +60,13 @@ export const profileUpdateSchema = z
 export const userPreferencesUpdateSchema = z
   .object({
     profileVisibility: profileVisibilitySchema,
+    collectionVisibility: collectionVisibilitySchema,
     allowFriendRequests: z.boolean(),
     appearInUserSearch: z.boolean(),
     showOnlineStatus: z.boolean(),
     showCollectionStats: z.boolean(),
+    showCardQuantities: z.boolean(),
+    showCollectionCompletion: z.boolean(),
     showGameStats: z.boolean(),
     emailNotifications: z.boolean(),
     friendRequestNotifications: z.boolean(),

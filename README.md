@@ -193,7 +193,12 @@ Voir [docs/design-system.md](docs/design-system.md) pour les conventions complè
 
 ## Routes et endpoints applicatifs
 
-Pages publiques : `/`, `/login`, `/cards`, `/cards/[id]`, `/rankings`. Pages authentifiées : `/collection`, `/decks`, `/decks/new`, `/decks/[id]`, `/boosters`, `/play`, `/profile`. L’espace `/admin` est monté uniquement pour `MODERATOR` et `ADMINISTRATOR`; les permissions de chaque endpoint restent la protection autoritaire.
+Pages publiques : `/`, `/login`, `/cards`, `/cards/[id]`, `/rankings` et
+`/users/[username]`. Pages authentifiées : `/decks`, `/decks/new`, `/decks/[id]`, `/boosters`,
+`/play`, `/profile` et `/settings/*`. `/profile` regroupe l’identité sociale, les statistiques et la
+collection personnelle; l’ancienne route `/collection` redirige vers sa section Collection.
+L’espace `/admin` est monté uniquement pour `MODERATOR` et `ADMINISTRATOR`; les permissions de
+chaque endpoint restent la protection autoritaire.
 
 La configuration typée de la navigation se trouve dans `apps/web/lib/navigation.ts`. Elle déclare
 le groupe Administration, ses sous-routes, leur correspondance exacte et la permission requise.
@@ -206,7 +211,10 @@ Les endpoints ajoutés pour la refonte sont notamment :
 - `GET /api/v1/cards` pour le catalogue public paginé, avec recherche, saison, rareté, type,
   Commandant et tri serveur ;
 - `GET /api/v1/me/collection` paginé et filtrable, plus `/summary` et `/card/:cardId` ;
+- `GET /api/v1/users/:username/collection` pour les collections publiques autorisées et filtrées ;
 - `GET /api/v1/me/profile/summary` pour le tableau de bord et le profil ;
+- `GET /api/v1/me/profile/stats` et `GET /api/v1/users/:username/profile-stats` pour les agrégats
+  serveur personnels ou publics ;
 - `GET /api/v1/rankings` et `GET /api/v1/me/ranking` ;
 - `GET /api/v1/me/wallets` et `GET /api/v1/me/booster-openings` ;
 - `GET /api/v1/admin/overview` pour les compteurs autorisés.

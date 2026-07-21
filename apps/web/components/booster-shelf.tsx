@@ -75,7 +75,7 @@ export function BoosterShelf() {
         client.invalidateQueries({ queryKey: queryKeys.wallets }),
         client.invalidateQueries({ queryKey: ['booster-openings'] }),
         client.invalidateQueries({ queryKey: ['collection'] }),
-        client.invalidateQueries({ queryKey: queryKeys.collectionSummary }),
+        client.invalidateQueries({ queryKey: queryKeys.profileRoot }),
       ]);
     },
     onError: (error) => notify(error.message, 'error'),
@@ -353,7 +353,7 @@ export function BoosterShelf() {
             </div>
             <div className="mt-5 flex flex-wrap justify-end gap-2">
               <Button asChild variant="outline">
-                <Link href="/collection">Voir ma collection</Link>
+                <Link href="/profile#collection">Voir ma collection</Link>
               </Button>
               <Button onClick={() => setResult(null)}>Ouvrir un autre booster</Button>
             </div>

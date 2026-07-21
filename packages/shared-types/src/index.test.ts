@@ -1,5 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { hasPermission } from './index.js';
+import { hasPermission, ROLE_LABELS } from './index.js';
+
+describe('public role labels', () => {
+  it('provides the four French labels used by role badges', () => {
+    expect(ROLE_LABELS).toEqual({
+      USER: 'Utilisateur',
+      PIONEER: 'Pionnier',
+      MODERATOR: 'Modérateur',
+      ADMINISTRATOR: 'Administrateur',
+    });
+  });
+});
 
 describe('booster permissions', () => {
   it('allows moderators to manage boosters without permanent deletion rights', () => {

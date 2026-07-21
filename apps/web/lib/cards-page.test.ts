@@ -35,7 +35,10 @@ describe('cards page filters', () => {
       new URLSearchParams('page=-4&commander=yes&sort=-quantity'),
       'CATALOG',
     );
-    const collection = readCardsPageUrlState(new URLSearchParams('sort=-quantity'), 'COLLECTION');
+    const collection = readCardsPageUrlState(
+      new URLSearchParams('sort=-quantity'),
+      'PROFILE_COLLECTION',
+    );
     expect(catalog).toMatchObject({ page: 1, commander: '', sort: 'number' });
     expect(collection.sort).toBe('-quantity');
   });
@@ -62,5 +65,8 @@ describe('cards page filters', () => {
     expect(queryKeys.cards('page=1')).not.toEqual(queryKeys.collection('page=1'));
     expect(queryKeys.cards('page=1')[0]).toBe('cards');
     expect(queryKeys.collection('page=1')[0]).toBe('collection');
+    expect(queryKeys.publicProfileCollection('Lucas', 'page=1')).not.toEqual(
+      queryKeys.collection('page=1'),
+    );
   });
 });

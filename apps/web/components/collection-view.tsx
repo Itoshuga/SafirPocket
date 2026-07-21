@@ -3,31 +3,58 @@
 import type {
   CardFacets,
   CollectionEntry,
-  CollectionSummary,
   PaginatedResponse,
+  ProfileStats,
 } from '@safir/shared-types';
-import { Button, Panel, Progress, Skeleton, cn } from '@safir/ui';
+import { Button, cn } from '@safir/ui';
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
-import { useState } from 'react';
-import { collectionSortOptions, type CardsLayout } from '@/lib/cards-page';
+import { useState, type ReactNode } from 'react';
 import { apiFetch } from '@/lib/api-client';
+import { collectionSortOptions, type CardsLayout } from '@/lib/cards-page';
 import { queryKeys } from '@/lib/query-keys';
-import { CardsGallery, CardsStats, CardsToolbar, useCardsPageFilters } from './cards-browser';
+import { CardsGallery, CardsToolbar, useCardsPageFilters } from './cards-browser';
 import { TcgCard } from './tcg-card';
 
-export function CollectionView() {
+export function CollectionSectionIntro({
+  uniqueCards,
+  completion,
+  description,
+  action,
+}: {
+  uniqueCards?: number;
+  completion?: number;
+  description: string;
+  action?: ReactNode;
+}) {
+  return (
+    <div className="mb-5 flex flex-col gap-3 border-b border-border pb-5 sm:flex-row sm:items-end sm:justify-between">
+      <div>
+        <p className="text-xs font-semibold text-primary">Cartes du joueur</p>
+        <h2 id="collection-title" className="mt-1 text-xl font-semibold text-foreground">
+          Collection
+        </h2>
+        <p className="mt-1 max-w-2xl text-sm text-muted-foreground">{description}</p>
+        {uniqueCards !== undefined ? (
+          <p className="mt-2 text-xs font-medium text-muted-foreground">
+            {uniqueCards} carte{uniqueCards > 1 ? 's' : ''} unique{uniqueCards > 1 ? 's' : ''}
+            {completion !== undefined ? ` · ${completion} % du catalogue` : ''}
+          </p>
+        ) : null}
+      </div>
+      {action}
+    </div>
+  );
+}
+
+export function CollectionView({ stats }: { stats?: ProfileStats }) {
   const [layout, setLayout] = useState<CardsLayout>('grid');
-  const filters = useCardsPageFilters({ mode: 'COLLECTION', pageSize: 30 });
+  const filters = useCardsPageFilters({ mode: 'PROFILE_COLLECTION', pageSize: 30 });
   const collection = useQuery({
     queryKey: queryKeys.collection(filters.queryString),
     queryFn: () =>
       apiFetch<PaginatedResponse<CollectionEntry>>(`/api/v1/me/collection?${filters.queryString}`),
     placeholderData: (previous) => previous,
-  });
-  const summary = useQuery({
-    queryKey: queryKeys.collectionSummary,
-    queryFn: () => apiFetch<CollectionSummary>('/api/v1/me/collection/summary'),
   });
   const facets = useQuery({
     queryKey: queryKeys.cardFacets,
@@ -35,45 +62,14 @@ export function CollectionView() {
   });
 
   return (
-    <div>
-      <CardsStats
-        loading={summary.isLoading}
-        items={[
-          { label: 'Exemplaires', value: summary.data?.totalCopies ?? 0 },
-          {
-            label: 'Cartes uniques',
-            value: summary.data?.uniqueCards ?? 0,
-            hint: `${summary.data?.completionRate ?? 0} % du catalogue`,
-          },
-          { label: 'Variantes', value: summary.data?.uniqueVariants ?? 0 },
-          { label: 'Rareté principale', value: summary.data?.favoriteRarity ?? '—' },
-        ]}
+    <section id="collection" aria-labelledby="collection-title" className="scroll-mt-20 pt-2">
+      <CollectionSectionIntro
+        uniqueCards={stats?.uniqueCardsCount}
+        completion={stats?.collectionCompletionPercentage}
+        description="Recherchez, filtrez et consultez tous les exemplaires confirmés par le serveur."
       />
-      {summary.data?.sets.length ? (
-        <Panel className="mb-6">
-          <div className="mb-4">
-            <h2 className="text-base font-semibold">Progression par extension</h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Cartes uniques possédées parmi les cartes actuellement publiées.
-            </p>
-          </div>
-          <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
-            {summary.data.sets.map((setSummary) => (
-              <div key={setSummary.id}>
-                <Progress value={setSummary.completionRate} label={setSummary.name} />
-                <p className="mt-1.5 text-xs text-muted-foreground">
-                  {setSummary.ownedCards}/{setSummary.cardCount} · {setSummary.missingCards}{' '}
-                  manquante{setSummary.missingCards > 1 ? 's' : ''}
-                </p>
-              </div>
-            ))}
-          </div>
-        </Panel>
-      ) : summary.isLoading ? (
-        <Skeleton className="mb-6 h-32" />
-      ) : null}
       <CardsToolbar
-        mode="COLLECTION"
+        mode="PROFILE_COLLECTION"
         state={filters.state}
         search={filters.search}
         facets={facets.data}
@@ -124,7 +120,7 @@ export function CollectionView() {
         )}
         renderListItem={(entry) => <CollectionCardListItem entry={entry} />}
       />
-    </div>
+    </section>
   );
 }
 

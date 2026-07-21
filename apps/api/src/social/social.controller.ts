@@ -1,6 +1,6 @@
 import { Body, Controller, Delete, Get, Param, Post } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
-import { friendActionSchema, idSchema } from '@safir/validation';
+import { friendActionSchema, idSchema, usernameSchema } from '@safir/validation';
 import { CurrentUser } from '../common/auth/current-user.decorator.js';
 import type { AuthenticatedUser } from '../common/auth/auth.types.js';
 import { parseInput } from '../common/errors/zod.js';
@@ -23,6 +23,50 @@ export class SocialController {
   @Get('me/friend-requests/sent')
   sent(@CurrentUser() user: AuthenticatedUser) {
     return this.social.sent(user.id);
+  }
+
+  @Post('users/by-username/:username/friend-request')
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
+  requestByUsername(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('username') username: string,
+    @Body() body: unknown,
+  ) {
+    parseInput(friendActionSchema, body ?? {});
+    return this.social.requestByUsername(user.id, parseInput(usernameSchema, username));
+  }
+
+  @Post('users/by-username/:username/friend-request/accept')
+  acceptByUsername(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('username') username: string,
+    @Body() body: unknown,
+  ) {
+    parseInput(friendActionSchema, body ?? {});
+    return this.social.acceptByUsername(user.id, parseInput(usernameSchema, username));
+  }
+
+  @Delete('users/by-username/:username/friendship')
+  removeFriendByUsername(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('username') username: string,
+  ) {
+    return this.social.removeFriendByUsername(user.id, parseInput(usernameSchema, username));
+  }
+
+  @Post('users/by-username/:username/block')
+  blockByUsername(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('username') username: string,
+    @Body() body: unknown,
+  ) {
+    parseInput(friendActionSchema, body ?? {});
+    return this.social.blockByUsername(user.id, parseInput(usernameSchema, username));
+  }
+
+  @Delete('users/by-username/:username/block')
+  unblockByUsername(@CurrentUser() user: AuthenticatedUser, @Param('username') username: string) {
+    return this.social.unblockByUsername(user.id, parseInput(usernameSchema, username));
   }
 
   @Post('users/:userId/friend-request')

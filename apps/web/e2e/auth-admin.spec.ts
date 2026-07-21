@@ -309,6 +309,46 @@ async function mockAdminApi(page: Page, actorProfile = profile) {
     const url = new URL(request.url());
     const path = url.pathname;
     if (path.endsWith('/me/profile')) return route.fulfill({ json: actorProfile });
+    if (path.endsWith('/me/preferences')) {
+      return route.fulfill({
+        json: {
+          userId: actorProfile.id,
+          profileVisibility: 'PUBLIC',
+          collectionVisibility: 'PUBLIC',
+          allowFriendRequests: true,
+          appearInUserSearch: true,
+          showOnlineStatus: false,
+          showCollectionStats: true,
+          showCardQuantities: true,
+          showCollectionCompletion: true,
+          showGameStats: true,
+          emailNotifications: true,
+          friendRequestNotifications: true,
+          friendAcceptanceNotifications: true,
+          gameInviteNotifications: true,
+          gameNewsNotifications: true,
+          marketingEmails: false,
+          createdAt: timestamp,
+          updatedAt: timestamp,
+        },
+      });
+    }
+    if (path.endsWith('/me/profile/stats')) {
+      return route.fulfill({
+        json: {
+          uniqueCardsCount: 1,
+          totalCardsCount: 3,
+          totalAvailableCardsCount: 2,
+          collectionCompletionPercentage: 50,
+          decksCount: 1,
+          friendsCount: 0,
+          gamesPlayed: 0,
+          winsCount: 0,
+          currentRating: null,
+          currentRank: null,
+        },
+      });
+    }
     if (path.endsWith('/me/account/security-settings')) {
       return route.fulfill({
         json: {
@@ -701,7 +741,7 @@ async function login(page: Page) {
   await emailInput.fill(e2eEmail);
   await passwordInput.fill(e2ePassword);
   await loginForm.locator('button[type="submit"]:visible').click();
-  await page.waitForURL(/\/(collection|admin)/, { timeout: 30_000 });
+  await page.waitForURL(/\/(profile|admin)/, { timeout: 30_000 });
   await expect(
     page.getByRole('button', { name: 'Ouvrir le menu du compte' }).filter({ visible: true }),
   ).toBeVisible();
@@ -733,7 +773,7 @@ async function expectNoHorizontalOverflowAtSupportedWidths(page: Page) {
 }
 
 test.describe('authenticated administration workflows', () => {
-  test('keeps catalogue and collection visually aligned without mixing ownership', async ({
+  test('keeps catalogue and profile collection aligned without mixing ownership', async ({
     page,
   }) => {
     const consoleErrors: string[] = [];
@@ -743,12 +783,14 @@ test.describe('authenticated administration workflows', () => {
     await mockAdminApi(page);
     await login(page);
 
-    await page.goto('/collection');
-    await expect(page.getByRole('heading', { level: 1, name: 'Ma collection' })).toBeVisible();
+    await page.goto('/profile');
+    await expect(page.getByRole('heading', { level: 1, name: 'Modératrice' })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 2, name: 'Collection' })).toBeVisible();
     await expect(page.getByTestId('cards-toolbar')).toBeVisible();
     await expect(page.getByText('Sentinelle E2E')).toBeVisible();
     await expect(page.getByText('× 3')).toBeVisible();
     await expect(page.getByText('Carte non possédée E2E')).toHaveCount(0);
+    await expect(page.getByRole('link', { name: 'Collection', exact: true })).toHaveCount(0);
 
     await page.goto('/cards');
     await expect(page.getByRole('heading', { level: 1, name: 'Toutes les cartes' })).toBeVisible();
@@ -913,7 +955,7 @@ test.describe('authenticated administration workflows', () => {
     await expect(page.getByRole('dialog').locator('[data-slot-category="COMMON"]')).toHaveCount(6);
     await expect(page.getByRole('dialog').locator('[data-slot-category="PREMIUM"]')).toHaveCount(2);
     await page.getByRole('dialog').getByRole('link', { name: 'Voir ma collection' }).click();
-    await expect(page).toHaveURL(/\/collection$/);
+    await expect(page).toHaveURL(/\/profile#collection$/);
     expect(
       await page.evaluate(
         () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
@@ -1000,6 +1042,8 @@ test.describe('authenticated administration workflows', () => {
       }[actorRole];
       await mockAdminApi(page, { ...profile, role: actorRole, roleLabel });
       await login(page);
+      await page.goto('/profile');
+      await expect(page.getByLabel(`Rôle : ${roleLabel}`)).toBeVisible();
       await page.goto('/');
       if (usesMobileNavigation(page)) {
         await page.getByRole('button', { name: 'Ouvrir la navigation' }).click();

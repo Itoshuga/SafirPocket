@@ -39,6 +39,14 @@ enum ProfileVisibility {
   @@map("profile_visibility")
 }
 
+enum CollectionVisibility {
+  PUBLIC
+  FRIENDS
+  PRIVATE
+
+  @@map("collection_visibility")
+}
+
 enum FriendRequestStatus {
   PENDING
   ACCEPTED
@@ -165,22 +173,25 @@ model UserProfile {
 }
 
 model UserPreference {
-  userId                        String            @id @map("user_id") @db.Uuid
-  profileVisibility             ProfileVisibility @default(PUBLIC) @map("profile_visibility")
-  allowFriendRequests           Boolean           @default(true) @map("allow_friend_requests")
-  appearInUserSearch            Boolean           @default(true) @map("appear_in_user_search")
-  showOnlineStatus              Boolean           @default(false) @map("show_online_status")
-  showCollectionStats           Boolean           @default(true) @map("show_collection_stats")
-  showGameStats                 Boolean           @default(true) @map("show_game_stats")
-  emailNotifications            Boolean           @default(true) @map("email_notifications")
-  friendRequestNotifications    Boolean           @default(true) @map("friend_request_notifications")
-  friendAcceptanceNotifications Boolean           @default(true) @map("friend_acceptance_notifications")
-  gameInviteNotifications       Boolean           @default(true) @map("game_invite_notifications")
-  gameNewsNotifications         Boolean           @default(true) @map("game_news_notifications")
-  marketingEmails               Boolean           @default(false) @map("marketing_emails")
-  createdAt                     DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt                     DateTime          @default(now()) @map("updated_at") @db.Timestamptz(6)
-  user                          UserProfile       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId                        String               @id @map("user_id") @db.Uuid
+  profileVisibility             ProfileVisibility    @default(PUBLIC) @map("profile_visibility")
+  collectionVisibility          CollectionVisibility @default(PUBLIC) @map("collection_visibility")
+  allowFriendRequests           Boolean              @default(true) @map("allow_friend_requests")
+  appearInUserSearch            Boolean              @default(true) @map("appear_in_user_search")
+  showOnlineStatus              Boolean              @default(false) @map("show_online_status")
+  showCollectionStats           Boolean              @default(true) @map("show_collection_stats")
+  showCardQuantities            Boolean              @default(true) @map("show_card_quantities")
+  showCollectionCompletion      Boolean              @default(true) @map("show_collection_completion")
+  showGameStats                 Boolean              @default(true) @map("show_game_stats")
+  emailNotifications            Boolean              @default(true) @map("email_notifications")
+  friendRequestNotifications    Boolean              @default(true) @map("friend_request_notifications")
+  friendAcceptanceNotifications Boolean              @default(true) @map("friend_acceptance_notifications")
+  gameInviteNotifications       Boolean              @default(true) @map("game_invite_notifications")
+  gameNewsNotifications         Boolean              @default(true) @map("game_news_notifications")
+  marketingEmails               Boolean              @default(false) @map("marketing_emails")
+  createdAt                     DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                     DateTime             @default(now()) @map("updated_at") @db.Timestamptz(6)
+  user                          UserProfile          @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("user_preferences")
 }

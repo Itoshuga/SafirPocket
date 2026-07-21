@@ -2,7 +2,6 @@ import { hasPermission, type AppPermission, type AppRole } from '@safir/shared-t
 import {
   BookOpen,
   Bell,
-  Boxes,
   CalendarRange,
   ChartNoAxesColumnIncreasing,
   CircleUserRound,
@@ -48,14 +47,6 @@ export interface NavigationGroup {
 export const primaryNavigationItems = [
   { key: 'home', href: '/', label: 'Accueil', icon: House, match: 'exact' },
   { key: 'cards', href: '/cards', label: 'Cartes', icon: BookOpen, match: 'segment' },
-  {
-    key: 'collection',
-    href: '/collection',
-    label: 'Collection',
-    icon: Boxes,
-    match: 'segment',
-    requiresAuthentication: true,
-  },
   {
     key: 'decks',
     href: '/decks',
@@ -170,14 +161,14 @@ export const adminNavigationGroup = {
   ],
 } as const satisfies NavigationGroup;
 
-export const playNavigationItem = primaryNavigationItems[5];
+export const playNavigationItem = primaryNavigationItems.find((item) => item.key === 'play')!;
 export const sidebarNavigationItems = primaryNavigationItems.filter((item) => item.key !== 'play');
 export const mobileNavigationItems = [
+  primaryNavigationItems[0],
   primaryNavigationItems[1],
-  primaryNavigationItems[2],
   playNavigationItem,
-  primaryNavigationItems[3],
-  primaryNavigationItems[4],
+  primaryNavigationItems[2],
+  primaryNavigationItems[6],
 ] as const;
 
 export const settingsNavigationItems = [

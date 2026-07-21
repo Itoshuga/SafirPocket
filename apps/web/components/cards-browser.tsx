@@ -31,9 +31,10 @@ import { useAuth } from './auth-provider';
 export function CardsHeaderAction({ mode }: { mode: CardsPageMode }) {
   const { user, loading } = useAuth();
   if (mode === 'CATALOG' && (!user || loading)) return null;
+  if (mode === 'PUBLIC_PROFILE_COLLECTION') return null;
   return (
     <Button asChild variant="outline" size="sm">
-      <Link href={mode === 'CATALOG' ? '/collection' : '/cards'}>
+      <Link href={mode === 'CATALOG' ? '/profile#collection' : '/cards'}>
         <Layers3 className="size-4" />
         {mode === 'CATALOG' ? 'Voir ma collection' : 'Toutes les cartes'}
       </Link>

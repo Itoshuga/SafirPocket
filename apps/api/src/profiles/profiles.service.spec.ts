@@ -37,7 +37,12 @@ function setup(profile = baseProfile) {
     },
   };
   const avatars = { verifyOwnedAvatar: vi.fn(), remove: vi.fn() };
-  return { service: new ProfilesService(prisma as never, avatars as never), prisma, avatars };
+  const stats = { legacySummary: vi.fn() };
+  return {
+    service: new ProfilesService(prisma as never, avatars as never, stats as never),
+    prisma,
+    avatars,
+  };
 }
 
 describe('ProfilesService', () => {

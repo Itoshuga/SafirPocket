@@ -2,8 +2,12 @@
 
 ## Routes web
 
-- `/profile` presente le profil propre, sa confidentialite et les statistiques calculees par l'API.
-- `/users/[username]` presente uniquement le profil public autorise.
+- `/profile` presente le profil propre, son role, les statistiques calculees par l'API et la
+  collection personnelle complete.
+- `/users/[username]` reprend la meme structure sociale et ajoute uniquement la collection publique
+  autorisee.
+- `/collection` est une redirection de compatibilite vers `/profile#collection` et ne contient plus
+  d'implementation concurrente.
 - `/settings/profile`, `/settings/privacy`, `/settings/notifications`, `/settings/account` et
   `/settings/friends` forment l'unique espace de preferences. `/settings` redirige vers le profil.
 
@@ -26,12 +30,25 @@ La biographie est limitee a 300 caracteres par Zod et par l'API. Les avatars JPE
 Les e-mails de securite essentiels restent obligatoires. Les autres preferences preparent les futurs
 producteurs de notifications sans simuler un systeme d'envoi qui n'existe pas encore.
 
+La migration `20260721100000_profile_collection_visibility.sql` ajoute une confidentialite de
+collection distincte avec les valeurs `PUBLIC`, `FRIENDS` et `PRIVATE`. Les colonnes
+`show_card_quantities` et `show_collection_completion` permettent de masquer independamment les
+copies exactes et la progression. Les comptes existants conservent les valeurs publiques et
+visibles par defaut grace aux contraintes `NOT NULL DEFAULT`.
+
 ## Profil public et recherche
 
 `GET /api/v1/users/:username/public-profile` recherche exclusivement par
-`normalized_username`. Il ne retourne jamais e-mail, statut de moderation, role interne complet,
-avertissement, identifiant Auth, preference privee ou audit. Les compteurs de collection et de jeu
-sont omis selon `show_collection_stats` et `show_game_stats`.
+`normalized_username`. Il retourne le role applicatif public et les permissions d'affichage, mais
+jamais e-mail, statut de moderation, avertissement, identifiant Auth, preference privee ou audit.
+Les statistiques sont chargees separement par `GET /api/v1/users/:username/profile-stats` et sont
+omises selon les preferences de collection et de jeu.
+
+`GET /api/v1/users/:username/collection` applique recherche, saison, rarete, type, Commandant, tri
+et pagination cote serveur. `ProfileAccessPolicyService` centralise l'acces au profil, aux
+statistiques, a la collection, aux quantites et aux demandes d'amis. Une collection `FRIENDS`
+exige une ligne d'amitie effective; une demande en attente ne suffit pas. L'endpoint public ne
+retourne jamais les quantites reservees ni les dates d'obtention.
 
 `GET /api/v1/users/search` exige une session, au moins deux caracteres, une pagination bornee a 50
 et un rate limit dedie. Les comptes desactives, supprimes, masques par

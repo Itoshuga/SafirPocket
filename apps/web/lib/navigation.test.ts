@@ -16,12 +16,13 @@ describe('primary navigation hierarchy', () => {
   it('keeps play prominent and centered in the mobile navigation', () => {
     expect(playNavigationItem.href).toBe('/play');
     expect(mobileNavigationItems.map((item) => item.label)).toEqual([
+      'Accueil',
       'Cartes',
-      'Collection',
       'Jouer',
       'Decks',
-      'Boosters',
+      'Profil',
     ]);
+    expect(mobileNavigationItems.map((item) => String(item.href))).not.toContain('/collection');
   });
 });
 
@@ -33,7 +34,7 @@ describe('safeInternalPath', () => {
   it.each(['https://example.com', '//example.com', '/\\example.com', 'javascript:alert(1)'])(
     'rejects an external redirect target: %s',
     (target) => {
-      expect(safeInternalPath(target, '/collection')).toBe('/collection');
+      expect(safeInternalPath(target, '/profile')).toBe('/profile');
     },
   );
 });

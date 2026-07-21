@@ -8,7 +8,7 @@ export default async function UserProfilePage({
 }) {
   const { username } = await params;
   return (
-    <PageContainer className="max-w-6xl">
+    <PageContainer className="max-w-7xl">
       <PublicProfileView username={username} />
     </PageContainer>
   );

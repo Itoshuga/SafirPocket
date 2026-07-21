@@ -3,6 +3,8 @@ import { expect, test, type Page } from '@playwright/test';
 const userId = '11111111-1111-4111-8111-111111111111';
 const friendId = '22222222-2222-4222-8222-222222222222';
 const requestId = '33333333-3333-4333-8333-333333333333';
+const cardId = '44444444-4444-4444-8444-444444444444';
+const variantId = '55555555-5555-4555-8555-555555555555';
 const timestamp = '2026-07-19T10:00:00.000Z';
 const email = 'profile-e2e@example.com';
 const password = 'E2E-password-only!';
@@ -69,7 +71,49 @@ const friend = {
   username: 'lucas_e2e',
   displayName: 'Lucas E2E',
   avatarUrl: null,
+  role: 'USER',
+  roleLabel: 'Utilisateur',
   isPioneer: false,
+};
+
+const card = {
+  id: cardId,
+  setId: null,
+  name: 'Sentinelle sociale',
+  slug: 'sentinelle-sociale',
+  number: 7,
+  collectionNumber: '7',
+  attack: 3,
+  defense: 4,
+  value: 2,
+  description: null,
+  imageUrl: null,
+  artworkPath: null,
+  isCommander: false,
+  rarity: { id: 'rarity', name: 'Rare', slug: 'rare', displayColor: null },
+  season: { id: 'season', name: 'Origines', slug: 'origines', code: 'ORI' },
+  types: [{ id: 'type', name: 'Allié', slug: 'allie', displayColor: null }],
+  cardType: 'Allié',
+  cost: 2,
+  status: 'published',
+  isActive: true,
+  createdAt: timestamp,
+  updatedAt: timestamp,
+};
+
+const collectionEntry = {
+  cardVariantId: variantId,
+  quantity: 3,
+  lockedQuantity: 1,
+  firstObtainedAt: timestamp,
+  lastObtainedAt: timestamp,
+  variant: {
+    id: variantId,
+    name: 'Standard',
+    finish: 'standard',
+    artworkPath: null,
+    card,
+  },
 };
 
 async function mockPersonalSpace(page: Page) {
@@ -78,10 +122,13 @@ async function mockPersonalSpace(page: Page) {
   let preferences = {
     userId,
     profileVisibility: 'PUBLIC',
+    collectionVisibility: 'PUBLIC',
     allowFriendRequests: true,
     appearInUserSearch: true,
     showOnlineStatus: false,
     showCollectionStats: true,
+    showCardQuantities: true,
+    showCollectionCompletion: true,
     showGameStats: true,
     emailNotifications: true,
     friendRequestNotifications: true,
@@ -109,7 +156,23 @@ async function mockPersonalSpace(page: Page) {
   await page.route('**/api/v1/**', async (route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
-    if (path.endsWith('/me/profile/stats') || path.endsWith('/me/profile/summary')) {
+    if (path.endsWith('/me/profile/stats')) {
+      return route.fulfill({
+        json: {
+          uniqueCardsCount: 7,
+          totalCardsCount: 12,
+          totalAvailableCardsCount: 20,
+          collectionCompletionPercentage: 35,
+          decksCount: 2,
+          friendsCount: 1,
+          gamesPlayed: 4,
+          winsCount: 3,
+          currentRating: 1200,
+          currentRank: 8,
+        },
+      });
+    }
+    if (path.endsWith('/me/profile/summary')) {
       return route.fulfill({
         json: {
           collection: {
@@ -158,29 +221,149 @@ async function mockPersonalSpace(page: Page) {
         },
       });
     }
-    if (path.endsWith('/me/collection/summary')) {
+    if (path.endsWith('/users/lucas_e2e/public-profile')) {
       return route.fulfill({
         json: {
-          totalCopies: 0,
-          uniqueVariants: 0,
-          uniqueCards: 0,
-          publishedCardCount: 0,
-          completionRate: 0,
-          favoriteRarity: null,
-          sets: [],
+          username: 'lucas_e2e',
+          displayName: 'Lucas E2E',
+          avatarUrl: null,
+          bio: 'Collection publique',
+          role: 'PIONEER',
+          roleLabel: 'Pionnier',
+          isPioneer: true,
+          profileVisibility: 'PUBLIC',
+          collectionVisibility: 'PUBLIC',
+          createdAt: timestamp,
+          friendship: { status: 'NONE' },
+          permissions: {
+            canViewProfile: true,
+            canViewStats: true,
+            canViewCollection: true,
+            canViewQuantities: false,
+            canViewCollectionCompletion: true,
+            canSendFriendRequest: true,
+            canBlock: true,
+          },
+        },
+      });
+    }
+    if (path.endsWith('/users/friends_only/public-profile')) {
+      return route.fulfill({
+        json: {
+          username: 'friends_only',
+          displayName: 'Entre amis',
+          avatarUrl: null,
+          bio: null,
+          role: 'USER',
+          roleLabel: 'Utilisateur',
+          isPioneer: false,
+          profileVisibility: 'PUBLIC',
+          collectionVisibility: 'FRIENDS',
+          createdAt: timestamp,
+          friendship: { status: 'NONE' },
+          permissions: {
+            canViewProfile: true,
+            canViewStats: true,
+            canViewCollection: false,
+            canViewQuantities: false,
+            canViewCollectionCompletion: false,
+            canSendFriendRequest: true,
+            canBlock: true,
+          },
+        },
+      });
+    }
+    if (path.endsWith('/users/private_user/public-profile')) {
+      return route.fulfill({
+        json: {
+          username: 'private_user',
+          displayName: null,
+          avatarUrl: null,
+          bio: null,
+          role: 'ADMINISTRATOR',
+          roleLabel: 'Administrateur',
+          isPioneer: false,
+          profileVisibility: 'PRIVATE',
+          collectionVisibility: 'PRIVATE',
+          createdAt: timestamp,
+          friendship: { status: 'NONE' },
+          permissions: {
+            canViewProfile: false,
+            canViewStats: false,
+            canViewCollection: false,
+            canViewQuantities: false,
+            canViewCollectionCompletion: false,
+            canSendFriendRequest: true,
+            canBlock: true,
+          },
+        },
+      });
+    }
+    if (path.endsWith('/users/lucas_e2e/profile-stats')) {
+      return route.fulfill({
+        json: {
+          friendsCount: 4,
+          uniqueCardsCount: 7,
+          totalAvailableCardsCount: 20,
+          collectionCompletionPercentage: 35,
+          decksCount: 2,
+          gamesPlayed: 4,
+          winsCount: 3,
+          currentRating: 1200,
+          currentRank: 8,
+        },
+      });
+    }
+    if (path.endsWith('/users/friends_only/profile-stats')) {
+      return route.fulfill({ json: { friendsCount: 2, decksCount: 1 } });
+    }
+    if (path.endsWith('/users/lucas_e2e/collection')) {
+      return route.fulfill({
+        json: {
+          data: [
+            {
+              cardVariantId: collectionEntry.cardVariantId,
+              variant: collectionEntry.variant,
+            },
+          ],
+          pagination: { page: 1, pageSize: 30, total: 1, pageCount: 1 },
         },
       });
     }
     if (path.endsWith('/me/collection')) {
       return route.fulfill({
         json: {
-          data: [],
-          pagination: { page: 1, pageSize: 30, total: 0, pageCount: 0 },
+          data: [collectionEntry],
+          pagination: { page: 1, pageSize: 30, total: 1, pageCount: 1 },
+        },
+      });
+    }
+    if (path.endsWith(`/me/collection/card/${cardId}`)) {
+      return route.fulfill({
+        json: { totalQuantity: 3, lockedQuantity: 1, variants: [], decks: [] },
+      });
+    }
+    if (path.endsWith(`/cards/${cardId}`)) {
+      return route.fulfill({
+        json: {
+          ...card,
+          effectText: null,
+          stats: {},
+          effects: [],
+          metadata: {},
+          variants: [collectionEntry.variant],
         },
       });
     }
     if (path.endsWith('/card-facets')) {
-      return route.fulfill({ json: { sets: [], rarities: [], seasons: [], types: [] } });
+      return route.fulfill({
+        json: {
+          sets: [],
+          rarities: [card.rarity],
+          seasons: [card.season],
+          types: card.types,
+        },
+      });
     }
     if (path.endsWith('/me/friends')) return route.fulfill({ json: [] });
     if (path.endsWith('/me/friend-requests/sent')) return route.fulfill({ json: [] });
@@ -196,6 +379,8 @@ async function mockPersonalSpace(page: Page) {
               username: 'safir_e2e',
               displayName: 'Safir E2E',
               avatarUrl: null,
+              role: 'USER',
+              roleLabel: 'Utilisateur',
               isPioneer: false,
             },
             createdAt: timestamp,
@@ -238,7 +423,7 @@ async function login(page: Page) {
   await form.locator('input[name="email"]:visible').fill(email);
   await form.locator('input[name="password"]:visible').fill(password);
   await form.locator('button[type="submit"]:visible').click();
-  await page.waitForURL(/\/collection$/);
+  await page.waitForURL(/\/profile$/);
   await expect(
     page.getByRole('button', { name: 'Ouvrir le menu du compte' }).filter({ visible: true }),
   ).toBeVisible();
@@ -255,7 +440,11 @@ test('profile, avatar menu, preferences and social workflows are connected', asy
   await login(page);
   await page.goto('/profile');
   await expect(page.getByRole('heading', { name: 'Safir E2E' })).toBeVisible();
-  await expect(page.getByText('Cartes possédées')).toBeVisible();
+  await expect(page.getByLabel('Rôle : Utilisateur')).toBeVisible();
+  await expect(page.getByText('Copies totales')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Collection' })).toBeVisible();
+  await expect(page.getByText('Sentinelle sociale')).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Collection', exact: true })).toHaveCount(0);
   await page
     .getByRole('button', { name: 'Ouvrir le menu du compte' })
     .filter({ visible: true })
@@ -270,6 +459,8 @@ test('profile, avatar menu, preferences and social workflows are connected', asy
 
   await page.getByRole('link', { name: /Confidentialit/ }).click();
   await page.getByRole('switch', { name: 'Profil public' }).click();
+  await page.getByLabel('Visibilité de la collection').selectOption('FRIENDS');
+  await page.getByRole('switch', { name: 'Afficher les quantités de cartes' }).click();
   await expect.poll(() => mutations).toContain('preferences');
 
   await page.getByRole('link', { name: 'Amis' }).click();
@@ -291,6 +482,58 @@ test('profile, avatar menu, preferences and social workflows are connected', asy
       () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
     ),
   ).toBe(true);
+  expect({ consoleErrors, failedResponses }).toEqual({ consoleErrors: [], failedResponses: [] });
+});
+
+test('profile collection filters, card details and legacy redirect stay connected', async ({
+  page,
+}) => {
+  await mockPersonalSpace(page);
+  await login(page);
+  await page.getByLabel('Rechercher dans la collection').fill('sentinelle');
+  await expect(page).toHaveURL(/search=sentinelle/);
+  await page
+    .getByRole('link', { name: /Sentinelle sociale/ })
+    .first()
+    .click();
+  await expect(page).toHaveURL(new RegExp(`/cards/${cardId}$`));
+  await expect(page.getByRole('heading', { name: 'Sentinelle sociale' })).toBeVisible();
+
+  await page.goto('/collection');
+  await expect(page).toHaveURL(/\/profile#collection$/);
+  await expect(page.getByRole('heading', { name: 'Collection' })).toBeVisible();
+});
+
+test('public profile collection obeys public, friends-only and private access', async ({
+  page,
+}) => {
+  const consoleErrors: string[] = [];
+  const failedResponses: string[] = [];
+  page.on('console', (message) => message.type() === 'error' && consoleErrors.push(message.text()));
+  page.on('response', (response) => {
+    if (response.status() >= 400) failedResponses.push(`${response.status()} ${response.url()}`);
+  });
+  const mutations = await mockPersonalSpace(page);
+  await login(page);
+
+  await page.goto('/users/lucas_e2e');
+  await expect(page.getByRole('heading', { name: 'Lucas E2E' })).toBeVisible();
+  await expect(page.getByLabel('Rôle : Pionnier')).toBeVisible();
+  await expect(page.getByText('Sentinelle sociale')).toBeVisible();
+  await expect(page.getByText('× 3')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Ajouter en ami' }).click();
+  await expect.poll(() => mutations.some((path) => path.includes('/by-username/'))).toBe(true);
+
+  await page.goto('/users/friends_only');
+  await expect(
+    page.getByText('Cette collection est visible uniquement par ses amis.'),
+  ).toBeVisible();
+  await expect(page.getByText('Sentinelle sociale')).toHaveCount(0);
+
+  await page.goto('/users/private_user');
+  await expect(page.getByText('Ce profil est privé.')).toBeVisible();
+  await expect(page.getByLabel('Rôle : Administrateur')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Collection' })).toHaveCount(0);
   expect({ consoleErrors, failedResponses }).toEqual({ consoleErrors: [], failedResponses: [] });
 });
 
@@ -320,13 +563,21 @@ test('account deletion is scheduled only after username and checkbox confirmatio
   await expect.poll(() => mutations.some((path) => path.endsWith('/deletion-request'))).toBe(true);
 });
 
-test('settings remain usable at all requested responsive widths', async ({ page }) => {
+test('profiles remain usable at all requested responsive widths', async ({ page }) => {
   await mockPersonalSpace(page);
   await login(page);
   for (const width of [375, 430, 768, 1024, 1280, 1440]) {
     await page.setViewportSize({ width, height: 900 });
-    await page.goto('/settings/friends');
-    await expect(page.getByRole('heading', { name: 'Préférences' })).toBeVisible();
+    await page.goto('/profile');
+    await expect(page.getByRole('heading', { name: 'Safir E2E' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Collection' })).toBeVisible();
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+      ),
+    ).toBe(true);
+    await page.goto('/users/lucas_e2e');
+    await expect(page.getByRole('heading', { name: 'Lucas E2E' })).toBeVisible();
     expect(
       await page.evaluate(
         () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,

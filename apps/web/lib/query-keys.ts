@@ -1,5 +1,19 @@
 const collectionRoot = ['collection'] as const;
 const cardsRoot = ['cards'] as const;
+const profileRoot = ['profile'] as const;
+
+export const profileQueryKeys = {
+  root: profileRoot,
+  me: () => [...profileRoot, 'me'] as const,
+  stats: () => [...profileRoot, 'me', 'stats'] as const,
+  summary: () => [...profileRoot, 'me', 'summary'] as const,
+  public: (username: string) =>
+    [...profileRoot, 'public', username.toLocaleLowerCase('fr')] as const,
+  publicStats: (username: string) =>
+    [...profileRoot, 'public', username.toLocaleLowerCase('fr'), 'stats'] as const,
+  collection: (username: string, filters: string) =>
+    [...profileRoot, 'public', username.toLocaleLowerCase('fr'), 'collection', filters] as const,
+} as const;
 
 export const queryKeys = {
   cardsRoot,
@@ -8,7 +22,6 @@ export const queryKeys = {
   cardFacets: ['card-facets'] as const,
   collections: collectionRoot,
   collection: (filters: string) => [...collectionRoot, 'list', filters] as const,
-  collectionSummary: [...collectionRoot, 'summary'] as const,
   cardCollectionContext: (id: string) => ['card-collection-context', id] as const,
   decks: ['decks'] as const,
   deck: (id: string) => ['deck', id] as const,
@@ -17,10 +30,14 @@ export const queryKeys = {
   boosterOpening: (id: string) => ['booster-opening', id] as const,
   boosterDropRates: (id: string) => ['booster-drop-rates', id] as const,
   wallets: ['wallets'] as const,
-  profile: ['profile'] as const,
-  profileSummary: ['profile-summary'] as const,
+  profileRoot,
+  profile: profileQueryKeys.me(),
+  profileStats: profileQueryKeys.stats(),
+  profileSummary: profileQueryKeys.summary(),
   preferences: ['preferences'] as const,
-  publicProfile: (username: string) => ['public-profile', username] as const,
+  publicProfile: profileQueryKeys.public,
+  publicProfileStats: profileQueryKeys.publicStats,
+  publicProfileCollection: profileQueryKeys.collection,
   userSearch: (filters: string) => ['user-search', filters] as const,
   friends: ['friends'] as const,
   friendRequestsReceived: ['friend-requests', 'received'] as const,

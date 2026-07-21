@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Injectable } from '@nestjs/common';
 import type {
   FriendshipStatus,
   PaginatedResponse,
@@ -6,8 +6,11 @@ import type {
   PublicUserProfile,
   UserSearchResult,
 } from '@safir/shared-types';
+import { ROLE_LABELS } from '@safir/shared-types';
 import { normalizeUsername, type UserSearchQuery } from '@safir/validation';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { ProfileStatsService } from '../profiles/profile-stats.service.js';
+import { ProfileAccessPolicyService } from './profile-access-policy.service.js';
 
 const publicUserSelect = {
   id: true,
@@ -20,66 +23,85 @@ const publicUserSelect = {
 
 @Injectable()
 export class UsersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly accessPolicy: ProfileAccessPolicyService,
+    private readonly profileStats: ProfileStatsService,
+  ) {}
 
   async publicProfile(username: string, viewerId?: string): Promise<PublicUserProfile> {
-    const profile = await this.prisma.userProfile.findUnique({
-      where: { normalizedUsername: normalizeUsername(username) },
-      include: { preferences: true },
-    });
-    if (
-      !profile ||
-      profile.status !== 'ACTIVE' ||
-      profile.isDeactivated ||
-      profile.deletionProcessedAt
-    ) {
-      this.notAvailable();
-    }
-
-    const preferences = profile.preferences;
-    const ownProfile = viewerId === profile.id;
-    let friendshipStatus: FriendshipStatus = 'NONE';
-    if (viewerId && !ownProfile) {
-      const block = await this.prisma.userBlock.findFirst({
-        where: {
-          OR: [
-            { blockerUserId: viewerId, blockedUserId: profile.id },
-            { blockerUserId: profile.id, blockedUserId: viewerId },
-          ],
-        },
-      });
-      if (block?.blockerUserId === profile.id) this.notAvailable();
-      friendshipStatus = block ? 'BLOCKED' : await this.friendshipStatus(viewerId, profile.id);
-    }
-
-    if (preferences?.profileVisibility === 'PRIVATE' && !ownProfile) {
+    const { profile, preferences, friendshipStatus, permissions } = await this.accessPolicy.resolve(
+      username,
+      viewerId,
+    );
+    if (!permissions.canViewProfile) {
       return {
         username: profile.username,
         displayName: null,
         avatarUrl: null,
         bio: null,
-        isPioneer: false,
+        role: profile.role,
+        roleLabel: ROLE_LABELS[profile.role],
+        isPioneer: profile.role === 'PIONEER',
         profileVisibility: 'PRIVATE',
+        collectionVisibility: 'PRIVATE',
         createdAt: profile.createdAt.toISOString(),
-        publicStats: { friendsCount: 0 },
-        ...(viewerId ? { friendship: { status: friendshipStatus } } : {}),
+        friendship: { status: friendshipStatus },
+        permissions,
       };
     }
 
-    const publicStats = await this.publicStats(profile.id, {
-      showCollectionStats: preferences?.showCollectionStats ?? true,
-      showGameStats: preferences?.showGameStats ?? true,
-    });
     return {
       username: profile.username,
       displayName: profile.displayName,
       avatarUrl: profile.avatarUrl,
       bio: profile.bio,
+      role: profile.role,
+      roleLabel: ROLE_LABELS[profile.role],
       isPioneer: profile.role === 'PIONEER',
-      profileVisibility: preferences?.profileVisibility ?? 'PUBLIC',
+      profileVisibility: preferences.profileVisibility,
+      collectionVisibility: preferences.collectionVisibility,
       createdAt: profile.createdAt.toISOString(),
-      publicStats,
-      ...(viewerId && !ownProfile ? { friendship: { status: friendshipStatus } } : {}),
+      friendship: { status: friendshipStatus },
+      permissions,
+    };
+  }
+
+  async publicStats(username: string, viewerId?: string): Promise<PublicProfileStats> {
+    const { profile, preferences, permissions } = await this.accessPolicy.resolve(
+      username,
+      viewerId,
+    );
+    if (!permissions.canViewStats) {
+      throw new ForbiddenException({
+        code: 'PROFILE_STATS_PRIVATE',
+        message: 'Les statistiques de ce profil sont privées.',
+      });
+    }
+    const stats = await this.profileStats.get(profile.id);
+    return {
+      friendsCount: stats.friendsCount,
+      ...(preferences.showCollectionStats
+        ? {
+            decksCount: stats.decksCount,
+            ...(permissions.canViewCollection ? { uniqueCardsCount: stats.uniqueCardsCount } : {}),
+            ...(permissions.canViewQuantities ? { totalCardsCount: stats.totalCardsCount } : {}),
+            ...(permissions.canViewCollectionCompletion
+              ? {
+                  totalAvailableCardsCount: stats.totalAvailableCardsCount,
+                  collectionCompletionPercentage: stats.collectionCompletionPercentage,
+                }
+              : {}),
+          }
+        : {}),
+      ...(preferences.showGameStats
+        ? {
+            gamesPlayed: stats.gamesPlayed,
+            winsCount: stats.winsCount,
+            currentRating: stats.currentRating,
+            currentRank: stats.currentRank,
+          }
+        : {}),
     };
   }
 
@@ -124,6 +146,8 @@ export class UsersService {
         username: profile.username,
         displayName: profile.displayName,
         avatarUrl: profile.avatarUrl,
+        role: profile.role,
+        roleLabel: ROLE_LABELS[profile.role],
         isPioneer: profile.role === 'PIONEER',
         profileVisibility: profile.preferences?.profileVisibility ?? 'PUBLIC',
         friendshipStatus: statuses.get(profile.id) ?? 'NONE',
@@ -135,67 +159,6 @@ export class UsersService {
         pageCount: Math.ceil(total / query.pageSize),
       },
     };
-  }
-
-  private async publicStats(
-    userId: string,
-    visibility: { showCollectionStats: boolean; showGameStats: boolean },
-  ): Promise<PublicProfileStats> {
-    const [friendsCount, cards, decksCount, matchCount, wins, season] = await Promise.all([
-      this.prisma.friendship.count({
-        where: { OR: [{ userOneId: userId }, { userTwoId: userId }] },
-      }),
-      visibility.showCollectionStats
-        ? this.prisma.userCard.findMany({
-            where: { userId },
-            select: { quantity: true, cardVariant: { select: { cardId: true } } },
-          })
-        : Promise.resolve(null),
-      visibility.showCollectionStats
-        ? this.prisma.deck.count({ where: { ownerId: userId } })
-        : Promise.resolve(null),
-      visibility.showGameStats
-        ? this.prisma.match.count({ where: { players: { some: { userId } } } })
-        : Promise.resolve(null),
-      visibility.showGameStats
-        ? this.prisma.match.count({ where: { winnerId: userId, status: 'completed' } })
-        : Promise.resolve(null),
-      visibility.showGameStats
-        ? this.prisma.rankedSeason.findFirst({
-            where: { startsAt: { lte: new Date() }, endsAt: { gt: new Date() } },
-            orderBy: { startsAt: 'desc' },
-          })
-        : Promise.resolve(null),
-    ]);
-    const rating = season
-      ? await this.prisma.rankedRating.findUnique({
-          where: { seasonId_userId: { seasonId: season.id, userId } },
-        })
-      : null;
-    const rank = rating
-      ? (await this.prisma.rankedRating.count({
-          where: { seasonId: rating.seasonId, rating: { gt: rating.rating } },
-        })) + 1
-      : null;
-    return {
-      friendsCount,
-      ...(cards
-        ? {
-            cardsCount: cards.reduce((total, card) => total + card.quantity, 0),
-            uniqueCardsCount: new Set(cards.map(({ cardVariant }) => cardVariant.cardId)).size,
-          }
-        : {}),
-      ...(decksCount !== null ? { decksCount } : {}),
-      ...(matchCount !== null ? { matchCount, wins: wins ?? 0 } : {}),
-      ...(visibility.showGameStats
-        ? { currentRating: rating?.rating ?? null, currentRank: rank }
-        : {}),
-    };
-  }
-
-  private async friendshipStatus(viewerId: string, targetId: string): Promise<FriendshipStatus> {
-    const statuses = await this.friendshipStatuses(viewerId, [targetId]);
-    return statuses.get(targetId) ?? 'NONE';
   }
 
   private async friendshipStatuses(viewerId: string, targetIds: string[]) {
@@ -234,12 +197,5 @@ export class UsersService {
       }
     }
     return statuses;
-  }
-
-  private notAvailable(): never {
-    throw new NotFoundException({
-      code: 'PUBLIC_PROFILE_NOT_AVAILABLE',
-      message: "Ce profil n'est pas disponible.",
-    });
   }
 }

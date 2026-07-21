@@ -1,14 +1,16 @@
 'use client';
 
-import type { ProfileSummary, UserPreferences, UserProfile } from '@safir/shared-types';
-import { Button, ErrorState, SectionHeader, Skeleton, StatCard } from '@safir/ui';
+import type { ProfileStats, UserPreferences, UserProfile } from '@safir/shared-types';
+import { Button, ErrorState, Skeleton } from '@safir/ui';
 import { useQuery } from '@tanstack/react-query';
-import { ShieldAlert } from 'lucide-react';
+import { Copy, Settings, ShieldAlert, UserPen } from 'lucide-react';
 import Link from 'next/link';
 import { apiFetch } from '@/lib/api-client';
 import { queryKeys } from '@/lib/query-keys';
 import { useAppStore } from '@/stores/app-store';
+import { CollectionView } from './collection-view';
 import { ProfileHeader } from './profile-header';
+import { ProfileStatsBar } from './profile-stats-bar';
 
 export function ProfileOverview() {
   const notify = useAppStore((state) => state.notify);
@@ -20,15 +22,12 @@ export function ProfileOverview() {
     queryKey: queryKeys.preferences,
     queryFn: () => apiFetch<UserPreferences>('/api/v1/me/preferences'),
   });
-  const summary = useQuery({
-    queryKey: queryKeys.profileSummary,
-    queryFn: () => apiFetch<ProfileSummary>('/api/v1/me/profile/stats'),
+  const stats = useQuery({
+    queryKey: queryKeys.profileStats,
+    queryFn: () => apiFetch<ProfileStats>('/api/v1/me/profile/stats'),
   });
-  if (profile.isLoading || preferences.isLoading) return <Skeleton className="h-[38rem]" />;
-  if (profile.isError || preferences.isError || !profile.data || !preferences.data) {
-    return <ErrorState message="Impossible de charger le profil." />;
-  }
-  if (profile.data.isDeactivated) {
+
+  if (profile.data?.isDeactivated) {
     return (
       <ErrorState
         title="Compte désactivé"
@@ -43,46 +42,68 @@ export function ProfileOverview() {
       />
     );
   }
+
   return (
-    <div className="space-y-8">
-      <ProfileHeader
-        profile={profile.data}
-        visibility={preferences.data.profileVisibility}
-        onCopy={() => {
-          const url = `${window.location.origin}/users/${encodeURIComponent(profile.data.username)}`;
-          void navigator.clipboard.writeText(url).then(() => {
-            notify('Lien du profil copié.', 'success');
-          });
-        }}
-      />
-      <section aria-labelledby="profile-statistics-title">
-        <SectionHeader title="Statistiques" description="Données confirmées par le serveur." />
-        {summary.isError ? (
-          <ErrorState message="Les statistiques ne sont pas disponibles." />
-        ) : null}
-        {summary.isLoading ? (
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            {Array.from({ length: 4 }, (_, index) => (
-              <Skeleton key={index} className="h-24" />
-            ))}
-          </div>
-        ) : null}
-        {summary.data ? (
-          <div id="profile-statistics-title" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <StatCard label="Cartes possédées" value={summary.data.collection.totalCopies} />
-            <StatCard label="Cartes uniques" value={summary.data.collection.uniqueCards} />
-            <StatCard label="Decks" value={summary.data.deckCount} />
-            <StatCard label="Amis" value={summary.data.friendsCount ?? 0} />
-            <StatCard label="Parties" value={summary.data.matchCount} />
-            <StatCard label="Victoires" value={summary.data.wins} />
-            <StatCard
-              label="Rang actuel"
-              value={summary.data.currentRank ? `#${summary.data.currentRank}` : 'Non classé'}
-              hint={summary.data.currentRating ? `${summary.data.currentRating} points` : undefined}
-            />
-          </div>
-        ) : null}
-      </section>
+    <div className="space-y-7">
+      {profile.isLoading || preferences.isLoading ? <Skeleton className="h-52 w-full" /> : null}
+      {profile.isError || preferences.isError ? (
+        <ErrorState message="Impossible de charger les informations du profil." />
+      ) : null}
+      {profile.data && preferences.data ? (
+        <ProfileHeader
+          profile={profile.data}
+          visibility={preferences.data.profileVisibility}
+          actions={
+            <>
+              <Button asChild size="sm">
+                <Link href="/settings/profile">
+                  <UserPen className="size-4" /> Modifier le profil
+                </Link>
+              </Button>
+              <Button asChild variant="secondary" size="sm">
+                <Link href="/settings/profile">
+                  <Settings className="size-4" /> Préférences
+                </Link>
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  const url = `${window.location.origin}/users/${encodeURIComponent(profile.data.username)}`;
+                  void navigator.clipboard.writeText(url).then(() => {
+                    notify('Lien du profil copié.', 'success');
+                  });
+                }}
+              >
+                <Copy className="size-4" /> Copier le lien
+              </Button>
+            </>
+          }
+        />
+      ) : null}
+      {stats.isError ? (
+        <ErrorState message="Les statistiques du profil ne sont pas disponibles." />
+      ) : (
+        <ProfileStatsBar
+          loading={stats.isLoading}
+          items={
+            stats.data
+              ? [
+                  { label: 'Cartes uniques', value: stats.data.uniqueCardsCount },
+                  { label: 'Copies totales', value: stats.data.totalCardsCount },
+                  {
+                    label: 'Progression',
+                    value: `${stats.data.collectionCompletionPercentage} %`,
+                    hint: `${stats.data.totalAvailableCardsCount} cartes disponibles`,
+                  },
+                  { label: 'Decks', value: stats.data.decksCount },
+                  { label: 'Amis', value: stats.data.friendsCount },
+                ]
+              : []
+          }
+        />
+      )}
+      <CollectionView stats={stats.data} />
     </div>
   );
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { ErrorState, Panel, SectionHeader, Skeleton } from '@safir/ui';
+import { ErrorState, Panel, SectionHeader, Select, Skeleton } from '@safir/ui';
 import { PrivacySettingRow } from './privacy-setting-row';
 import { usePreferences } from './use-preferences';
 
@@ -48,13 +48,48 @@ export function PrivacySettingsForm() {
         disabled={update.isPending}
         onChange={(checked) => save({ showOnlineStatus: checked })}
       />
+      <div className="border-b border-border py-5">
+        <label htmlFor="collection-visibility" className="text-sm font-semibold text-foreground">
+          Visibilité de la collection
+        </label>
+        <p className="mt-1 text-sm leading-6 text-muted-foreground">
+          Choisissez qui peut parcourir les cartes affichées sur votre profil.
+        </p>
+        <Select
+          id="collection-visibility"
+          className="mt-3 max-w-xs"
+          value={preferences.collectionVisibility}
+          disabled={update.isPending}
+          onChange={(event) => save({ collectionVisibility: event.target.value })}
+        >
+          <option value="PUBLIC">Tout le monde</option>
+          <option value="FRIENDS">Amis uniquement</option>
+          <option value="PRIVATE">Moi uniquement</option>
+        </Select>
+      </div>
       <PrivacySettingRow
         id="collection-stats"
-        title="Afficher les statistiques de collection"
-        description="Autorise les totaux de cartes et de decks sur votre profil public."
+        title="Afficher le résumé de collection"
+        description="Autorise le nombre de cartes uniques et de decks sur votre profil public."
         checked={preferences.showCollectionStats}
         disabled={update.isPending}
         onChange={(checked) => save({ showCollectionStats: checked })}
+      />
+      <PrivacySettingRow
+        id="card-quantities"
+        title="Afficher les quantités de cartes"
+        description="Les visiteurs autorisés voient le nombre exact de copies, jamais les quantités réservées."
+        checked={preferences.showCardQuantities}
+        disabled={update.isPending}
+        onChange={(checked) => save({ showCardQuantities: checked })}
+      />
+      <PrivacySettingRow
+        id="collection-completion"
+        title="Afficher la progression globale"
+        description="Les visiteurs autorisés voient la progression par rapport au catalogue publié."
+        checked={preferences.showCollectionCompletion}
+        disabled={update.isPending}
+        onChange={(checked) => save({ showCollectionCompletion: checked })}
       />
       <PrivacySettingRow
         id="game-stats"

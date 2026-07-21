@@ -4,7 +4,13 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import type { BlockedUser, FriendRequest, Friendship } from '@safir/shared-types';
+import {
+  ROLE_LABELS,
+  type BlockedUser,
+  type FriendRequest,
+  type Friendship,
+} from '@safir/shared-types';
+import { normalizeUsername } from '@safir/validation';
 import type {
   FriendRequest as DatabaseFriendRequest,
   UserProfile,
@@ -53,6 +59,32 @@ export class SocialService {
 
   async sent(userId: string): Promise<FriendRequest[]> {
     return this.requests({ senderUserId: userId, status: 'PENDING' });
+  }
+
+  async requestByUsername(userId: string, username: string): Promise<FriendRequest> {
+    return this.request(userId, await this.targetIdByUsername(username));
+  }
+
+  async acceptByUsername(userId: string, username: string): Promise<Friendship> {
+    const targetUserId = await this.targetIdByUsername(username);
+    const request = await this.prisma.friendRequest.findFirst({
+      where: { senderUserId: targetUserId, receiverUserId: userId, status: 'PENDING' },
+      select: { id: true },
+    });
+    if (!request) this.requestNotFound();
+    return this.accept(userId, request.id);
+  }
+
+  async removeFriendByUsername(userId: string, username: string): Promise<{ removed: true }> {
+    return this.removeFriend(userId, await this.targetIdByUsername(username));
+  }
+
+  async blockByUsername(userId: string, username: string): Promise<BlockedUser> {
+    return this.block(userId, await this.targetIdByUsername(username));
+  }
+
+  async unblockByUsername(userId: string, username: string): Promise<{ removed: true }> {
+    return this.unblock(userId, await this.targetIdByUsername(username));
   }
 
   async request(userId: string, targetUserId: string): Promise<FriendRequest> {
@@ -367,12 +399,33 @@ export class SocialService {
     return firstUserId < secondUserId ? [firstUserId, secondUserId] : [secondUserId, firstUserId];
   }
 
+  private async targetIdByUsername(username: string): Promise<string> {
+    const target = await this.prisma.userProfile.findUnique({
+      where: { normalizedUsername: normalizeUsername(username) },
+      select: { id: true, status: true, isDeactivated: true, deletionProcessedAt: true },
+    });
+    if (
+      !target ||
+      target.status !== 'ACTIVE' ||
+      target.isDeactivated ||
+      target.deletionProcessedAt
+    ) {
+      throw new NotFoundException({
+        code: 'USER_NOT_FOUND',
+        message: 'Utilisateur introuvable.',
+      });
+    }
+    return target.id;
+  }
+
   private toFriendUser(user: FriendUserRow) {
     return {
       id: user.id,
       username: user.username,
       displayName: user.displayName,
       avatarUrl: user.avatarUrl,
+      role: user.role,
+      roleLabel: ROLE_LABELS[user.role],
       isPioneer: user.role === 'PIONEER',
     };
   }

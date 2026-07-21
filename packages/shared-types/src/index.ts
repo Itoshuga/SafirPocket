@@ -2,8 +2,10 @@ export type AppRole = 'USER' | 'PIONEER' | 'MODERATOR' | 'ADMINISTRATOR';
 export type UserRole = AppRole;
 export type AccountStatus = 'ACTIVE' | 'SUSPENDED' | 'BANNED';
 export type ProfileVisibility = 'PUBLIC' | 'PRIVATE';
+export type CollectionVisibility = 'PUBLIC' | 'FRIENDS' | 'PRIVATE';
 export type FriendRequestStatus = 'PENDING' | 'ACCEPTED' | 'DECLINED' | 'CANCELLED';
-export type FriendshipStatus = 'NONE' | 'PENDING_SENT' | 'PENDING_RECEIVED' | 'FRIENDS' | 'BLOCKED';
+export type FriendshipStatus =
+  'SELF' | 'NONE' | 'PENDING_SENT' | 'PENDING_RECEIVED' | 'FRIENDS' | 'BLOCKED';
 
 export const ROLE_LABELS: Record<AppRole, string> = {
   USER: 'Utilisateur',
@@ -11,6 +13,11 @@ export const ROLE_LABELS: Record<AppRole, string> = {
   MODERATOR: 'Modérateur',
   ADMINISTRATOR: 'Administrateur',
 };
+
+export interface UserRoleDisplay {
+  role: AppRole;
+  label: string;
+}
 
 export const ACCOUNT_STATUS_LABELS: Record<AccountStatus, string> = {
   ACTIVE: 'Actif',
@@ -160,10 +167,13 @@ export interface UserProfile extends PublicUser {
 export interface UserPreferences {
   userId: string;
   profileVisibility: ProfileVisibility;
+  collectionVisibility: CollectionVisibility;
   allowFriendRequests: boolean;
   appearInUserSearch: boolean;
   showOnlineStatus: boolean;
   showCollectionStats: boolean;
+  showCardQuantities: boolean;
+  showCollectionCompletion: boolean;
   showGameStats: boolean;
   emailNotifications: boolean;
   friendRequestNotifications: boolean;
@@ -175,27 +185,64 @@ export interface UserPreferences {
   updatedAt: string;
 }
 
+export interface ProfileStats {
+  uniqueCardsCount: number;
+  totalCardsCount: number;
+  totalAvailableCardsCount: number;
+  collectionCompletionPercentage: number;
+  decksCount: number;
+  friendsCount: number;
+  gamesPlayed: number;
+  winsCount: number;
+  currentRating: number | null;
+  currentRank: number | null;
+}
+
 export interface PublicProfileStats {
   friendsCount: number;
-  cardsCount?: number;
+  totalCardsCount?: number;
   uniqueCardsCount?: number;
+  totalAvailableCardsCount?: number;
+  collectionCompletionPercentage?: number;
   decksCount?: number;
-  matchCount?: number;
-  wins?: number;
+  gamesPlayed?: number;
+  winsCount?: number;
   currentRating?: number | null;
   currentRank?: number | null;
 }
 
-export interface PublicUserProfile {
+export interface ProfilePermissions {
+  canViewProfile: boolean;
+  canViewStats: boolean;
+  canViewCollection: boolean;
+  canViewQuantities: boolean;
+  canViewCollectionCompletion: boolean;
+  canSendFriendRequest: boolean;
+  canBlock: boolean;
+}
+
+export interface ProfileIdentity {
   username: string;
   displayName: string | null;
   avatarUrl: string | null;
   bio: string | null;
+  role: AppRole;
+  roleLabel: string;
   isPioneer: boolean;
   profileVisibility: ProfileVisibility;
+  collectionVisibility: CollectionVisibility;
   createdAt: string;
-  publicStats: PublicProfileStats;
-  friendship?: { status: FriendshipStatus };
+}
+
+export interface ProfilePageData {
+  profile: ProfileIdentity;
+  friendship: { status: FriendshipStatus };
+  permissions: ProfilePermissions;
+}
+
+export interface PublicUserProfile extends ProfileIdentity {
+  friendship: { status: FriendshipStatus };
+  permissions: ProfilePermissions;
 }
 
 export interface FriendUser {
@@ -203,6 +250,8 @@ export interface FriendUser {
   username: string;
   displayName: string | null;
   avatarUrl: string | null;
+  role: AppRole;
+  roleLabel: string;
   isPioneer: boolean;
 }
 
@@ -417,7 +466,7 @@ export interface CardSummary extends Card {
   set?: Pick<CardSetSummary, 'id' | 'name' | 'slug' | 'code'>;
 }
 
-export type CardsPageMode = 'CATALOG' | 'COLLECTION';
+export type CardsPageMode = 'CATALOG' | 'PROFILE_COLLECTION' | 'PUBLIC_PROFILE_COLLECTION';
 export type CatalogCardsSort =
   'number' | '-number' | 'name' | '-name' | 'rarity' | 'season' | '-createdAt';
 export type CollectionCardsSort =
@@ -736,6 +785,14 @@ export interface CollectionEntry {
     card: CardSummary;
   };
 }
+
+export interface ProfileCollectionItem {
+  cardVariantId: string;
+  quantity?: number;
+  variant: CollectionEntry['variant'];
+}
+
+export type ProfileCollectionFilters = CardsListFilters;
 
 export interface CollectionSummary {
   totalCopies: number;

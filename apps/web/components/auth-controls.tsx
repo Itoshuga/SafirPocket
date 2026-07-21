@@ -1,11 +1,12 @@
 'use client';
 
-import { Avatar, Badge, Button, DropdownMenu, Skeleton } from '@safir/ui';
+import { Avatar, Button, DropdownMenu, Skeleton } from '@safir/ui';
 import { LogOut, Settings, UserRound } from 'lucide-react';
 import Link from 'next/link';
 import { useAuth } from './auth-provider';
 import { useAppStore } from '@/stores/app-store';
 import { resolveAvatarUrl } from '@/lib/avatar-url';
+import { UserRoleBadge } from './user-role-badge';
 
 export function AuthControls() {
   const { user, profile, loading, signOut } = useAuth();
@@ -38,7 +39,11 @@ export function AuthControls() {
       <DropdownMenu.Content align="end">
         <DropdownMenu.Label className="max-w-56">
           <span className="block truncate">{String(label)}</span>
-          {profile?.role === 'PIONEER' ? <Badge className="mt-1">Pionnier</Badge> : null}
+          {profile ? (
+            <span className="mt-1 block">
+              <UserRoleBadge role={profile.role} />
+            </span>
+          ) : null}
         </DropdownMenu.Label>
         <DropdownMenu.Separator />
         <DropdownMenu.Item asChild>

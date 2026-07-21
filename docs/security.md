@@ -22,6 +22,10 @@
 - Les protections d'affichage frontend ne remplacent jamais les guards de permissions, le contrôle de hiérarchie, les transactions et RLS côté serveur.
 - Les préférences de confidentialité sont persistées dans `user_preferences`. Le profil public et
   la recherche appliquent ces choix côté API sans retourner d'e-mail ou de statut de modération.
+- `collection_visibility` est indépendante de `profile_visibility`. `ProfileAccessPolicyService`
+  vérifie propriétaire, amitié et blocages avant toute statistique ou collection publique; les
+  quantités exactes et la progression ont leurs propres préférences. Les quantités réservées ne
+  sont jamais retournées par l'endpoint public.
 - Les demandes d'amis, acceptations et blocages sont transactionnels. Un index de paire empêche les
   demandes inversées simultanées; un blocage annule les demandes et l'amitié sans notifier la cible.
 - La désactivation volontaire reste distincte de `SUSPENDED` et `BANNED`. Les routes de

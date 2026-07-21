@@ -22,4 +22,10 @@ export class UsersController {
   publicProfile(@Param('username') username: string, @CurrentUser() user?: AuthenticatedUser) {
     return this.users.publicProfile(parseInput(usernameSchema, username), user?.id);
   }
+
+  @OptionalAuth()
+  @Get(':username/profile-stats')
+  profileStats(@Param('username') username: string, @CurrentUser() user?: AuthenticatedUser) {
+    return this.users.publicStats(parseInput(usernameSchema, username), user?.id);
+  }
 }

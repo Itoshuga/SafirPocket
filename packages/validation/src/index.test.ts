@@ -184,6 +184,13 @@ describe('shared validation', () => {
       true,
     );
     expect(userPreferencesUpdateSchema.safeParse({}).success).toBe(false);
+    expect(userPreferencesUpdateSchema.safeParse({ collectionVisibility: 'FRIENDS' }).success).toBe(
+      true,
+    );
+    expect(
+      userPreferencesUpdateSchema.safeParse({ collectionVisibility: 'FOLLOWERS' }).success,
+    ).toBe(false);
+    expect(userPreferencesUpdateSchema.safeParse({ showCardQuantities: false }).success).toBe(true);
   });
 
   it('bounds user search pagination against mass enumeration', () => {

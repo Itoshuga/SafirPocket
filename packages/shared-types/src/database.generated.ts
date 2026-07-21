@@ -1545,6 +1545,7 @@ export type Database = {
         Row: {
           allow_friend_requests: boolean
           appear_in_user_search: boolean
+          collection_visibility: Database["public"]["Enums"]["collection_visibility"]
           created_at: string
           email_notifications: boolean
           friend_acceptance_notifications: boolean
@@ -1553,6 +1554,8 @@ export type Database = {
           game_news_notifications: boolean
           marketing_emails: boolean
           profile_visibility: Database["public"]["Enums"]["profile_visibility"]
+          show_card_quantities: boolean
+          show_collection_completion: boolean
           show_collection_stats: boolean
           show_game_stats: boolean
           show_online_status: boolean
@@ -1562,6 +1565,7 @@ export type Database = {
         Insert: {
           allow_friend_requests?: boolean
           appear_in_user_search?: boolean
+          collection_visibility?: Database["public"]["Enums"]["collection_visibility"]
           created_at?: string
           email_notifications?: boolean
           friend_acceptance_notifications?: boolean
@@ -1570,6 +1574,8 @@ export type Database = {
           game_news_notifications?: boolean
           marketing_emails?: boolean
           profile_visibility?: Database["public"]["Enums"]["profile_visibility"]
+          show_card_quantities?: boolean
+          show_collection_completion?: boolean
           show_collection_stats?: boolean
           show_game_stats?: boolean
           show_online_status?: boolean
@@ -1579,6 +1585,7 @@ export type Database = {
         Update: {
           allow_friend_requests?: boolean
           appear_in_user_search?: boolean
+          collection_visibility?: Database["public"]["Enums"]["collection_visibility"]
           created_at?: string
           email_notifications?: boolean
           friend_acceptance_notifications?: boolean
@@ -1587,6 +1594,8 @@ export type Database = {
           game_news_notifications?: boolean
           marketing_emails?: boolean
           profile_visibility?: Database["public"]["Enums"]["profile_visibility"]
+          show_card_quantities?: boolean
+          show_collection_completion?: boolean
           show_collection_stats?: boolean
           show_game_stats?: boolean
           show_online_status?: boolean
@@ -1834,6 +1843,7 @@ export type Database = {
     Enums: {
       account_status: "ACTIVE" | "SUSPENDED" | "BANNED"
       app_role: "USER" | "PIONEER" | "MODERATOR" | "ADMINISTRATOR"
+      collection_visibility: "PUBLIC" | "FRIENDS" | "PRIVATE"
       deck_visibility: "private" | "unlisted" | "public"
       friend_request_status: "PENDING" | "ACCEPTED" | "DECLINED" | "CANCELLED"
       match_status: "pending" | "active" | "completed" | "cancelled"

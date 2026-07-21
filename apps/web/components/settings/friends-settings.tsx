@@ -75,7 +75,7 @@ export function FriendsSettings() {
       client.invalidateQueries({ queryKey: queryKeys.friendRequestsSent }),
       client.invalidateQueries({ queryKey: queryKeys.blockedUsers }),
       client.invalidateQueries({ queryKey: ['user-search'] }),
-      client.invalidateQueries({ queryKey: queryKeys.profileSummary }),
+      client.invalidateQueries({ queryKey: queryKeys.profileRoot }),
     ]);
   };
   const action = useMutation({

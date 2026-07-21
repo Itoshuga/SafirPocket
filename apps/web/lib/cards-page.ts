@@ -46,8 +46,9 @@ export function readCardsPageUrlState(
   params: URLSearchParams,
   mode: CardsPageMode,
 ): CardsPageUrlState {
-  const options = mode === 'CATALOG' ? catalogSortOptions : collectionSortOptions;
-  const fallback = mode === 'CATALOG' ? 'number' : 'recent';
+  const catalogMode = mode === 'CATALOG';
+  const options = catalogMode ? catalogSortOptions : collectionSortOptions;
+  const fallback = catalogMode ? 'number' : 'recent';
   const requestedSort = params.get('sort') ?? fallback;
   const sort = options.some(({ value }) => value === requestedSort) ? requestedSort : fallback;
   const requestedCommander = params.get('commander');

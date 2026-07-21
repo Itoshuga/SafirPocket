@@ -1,8 +1,10 @@
 import type { BlockedUser, FriendRequest, Friendship, UserSearchResult } from '@safir/shared-types';
+import type { AppRole } from '@safir/shared-types';
 import { Avatar, Badge, Button } from '@safir/ui';
 import { Ban, Check, UserMinus, UserPlus, X } from 'lucide-react';
 import Link from 'next/link';
 import { resolveAvatarUrl } from '@/lib/avatar-url';
+import { UserRoleBadge } from '../user-role-badge';
 
 function UserIdentity({
   user,
@@ -11,7 +13,7 @@ function UserIdentity({
     username: string;
     displayName: string | null;
     avatarUrl: string | null;
-    isPioneer: boolean;
+    role: AppRole;
   };
 }) {
   return (
@@ -30,7 +32,7 @@ function UserIdentity({
         </Link>
         <div className="flex items-center gap-2">
           <span className="truncate text-xs text-muted-foreground">@{user.username}</span>
-          {user.isPioneer ? <Badge tone="primary">Pionnier</Badge> : null}
+          <UserRoleBadge role={user.role} />
         </div>
       </div>
     </div>
@@ -114,6 +116,7 @@ export function UserSearchResultItem({
   onBlock: () => void;
 }) {
   const statusLabel = {
+    SELF: null,
     NONE: null,
     PENDING_SENT: 'Demande envoyée',
     PENDING_RECEIVED: 'Demande reçue',

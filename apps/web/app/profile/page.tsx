@@ -6,7 +6,7 @@ export const metadata: Metadata = { title: 'Profil' };
 
 export default function ProfilePage() {
   return (
-    <PageContainer className="max-w-6xl">
+    <PageContainer className="max-w-7xl">
       <ProfileOverview />
     </PageContainer>
   );

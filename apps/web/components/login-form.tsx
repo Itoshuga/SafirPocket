@@ -119,10 +119,10 @@ export function LoginForm() {
         window.location.assign(
           account.isDeactivated
             ? '/settings/account'
-            : safeInternalPath(search.get('next'), '/collection'),
+            : safeInternalPath(search.get('next'), '/profile'),
         );
       } catch {
-        window.location.assign(safeInternalPath(search.get('next'), '/collection'));
+        window.location.assign(safeInternalPath(search.get('next'), '/profile'));
       }
     }
   });

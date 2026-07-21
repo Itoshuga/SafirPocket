@@ -1,17 +1,63 @@
-import { Injectable } from '@nestjs/common';
+import { ForbiddenException, Injectable } from '@nestjs/common';
+import type { ProfileCollectionItem } from '@safir/shared-types';
 import type { CollectionFilters } from '@safir/validation';
 import type { Prisma } from '../generated/prisma/client.js';
 import { cardRelations, toCard } from '../cards/card.mapper.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { ProfileAccessPolicyService } from '../users/profile-access-policy.service.js';
 
 @Injectable()
 export class CollectionsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly accessPolicy: ProfileAccessPolicyService,
+  ) {}
 
   async list(userId: string, filters: CollectionFilters) {
+    const { rows, pagination } = await this.queryPage(userId, filters, true);
+    return {
+      data: rows.map(({ cardVariant, ...row }) => ({
+        ...row,
+        variant: { ...cardVariant, card: toCard(cardVariant.card) },
+      })),
+      pagination,
+    };
+  }
+
+  async publicList(username: string, viewerId: string | undefined, filters: CollectionFilters) {
+    const { profile, preferences, permissions } = await this.accessPolicy.resolve(
+      username,
+      viewerId,
+    );
+    if (!permissions.canViewCollection) {
+      const friendsOnly = preferences.collectionVisibility === 'FRIENDS';
+      throw new ForbiddenException({
+        code: friendsOnly ? 'COLLECTION_FRIENDS_ONLY' : 'COLLECTION_PRIVATE',
+        message: friendsOnly
+          ? 'Cette collection est visible uniquement par les amis de cet utilisateur.'
+          : 'La collection de cet utilisateur est privée.',
+      });
+    }
+    const { rows, pagination } = await this.queryPage(
+      profile.id,
+      filters,
+      permissions.canViewQuantities,
+    );
+    return {
+      data: rows.map<ProfileCollectionItem>(({ cardVariant, quantity }) => ({
+        cardVariantId: cardVariant.id,
+        ...(permissions.canViewQuantities ? { quantity } : {}),
+        variant: { ...cardVariant, card: toCard(cardVariant.card) },
+      })),
+      pagination,
+    };
+  }
+
+  private async queryPage(userId: string, filters: CollectionFilters, allowQuantitySort: boolean) {
     const season = filters.season ?? filters.set;
     const where: Prisma.UserCardWhereInput = {
       userId,
+      quantity: { gt: 0 },
       cardVariant: {
         card: {
           status: 'published',
@@ -52,9 +98,11 @@ export class CollectionsService {
                       { cardVariant: { card: { season: { sortOrder: 'asc' } } } },
                       { lastObtainedAt: 'desc' },
                     ]
-                  : filters.sort === '-quantity'
+                  : filters.sort === '-quantity' && allowQuantitySort
                     ? [{ quantity: 'desc' }, { lastObtainedAt: 'desc' }]
-                    : [{ lastObtainedAt: 'desc' }];
+                    : filters.sort === '-quantity'
+                      ? [{ cardVariant: { card: { number: 'asc' } } }, { lastObtainedAt: 'desc' }]
+                      : [{ lastObtainedAt: 'desc' }];
     const [rows, total] = await this.prisma.$transaction([
       this.prisma.userCard.findMany({
         where,
@@ -70,10 +118,7 @@ export class CollectionsService {
       this.prisma.userCard.count({ where }),
     ]);
     return {
-      data: rows.map(({ cardVariant, ...row }) => ({
-        ...row,
-        variant: { ...cardVariant, card: toCard(cardVariant.card) },
-      })),
+      rows,
       pagination: {
         page: filters.page,
         pageSize: filters.pageSize,

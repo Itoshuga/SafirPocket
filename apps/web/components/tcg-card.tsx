@@ -76,14 +76,16 @@ export function TcgCard({
           {mode === 'collection' ? (
             <div className="mt-2 flex items-center justify-between border-t border-border pt-2 text-xs">
               <span className="truncate text-muted-foreground">{variantName}</span>
-              <span className="shrink-0 font-semibold text-foreground">
-                × {quantity ?? 0}
-                {lockedQuantity ? (
-                  <span className="ml-1 text-muted-foreground">
-                    ({lockedQuantity} réservée{lockedQuantity > 1 ? 's' : ''})
-                  </span>
-                ) : null}
-              </span>
+              {quantity !== undefined ? (
+                <span className="shrink-0 font-semibold text-foreground">
+                  × {quantity}
+                  {lockedQuantity ? (
+                    <span className="ml-1 text-muted-foreground">
+                      ({lockedQuantity} réservée{lockedQuantity > 1 ? 's' : ''})
+                    </span>
+                  ) : null}
+                </span>
+              ) : null}
             </div>
           ) : null}
         </div>

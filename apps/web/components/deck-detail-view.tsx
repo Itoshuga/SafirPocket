@@ -48,7 +48,7 @@ export function DeckDetailView({ id }: { id: string }) {
     await Promise.all([
       client.invalidateQueries({ queryKey: queryKeys.deck(id) }),
       client.invalidateQueries({ queryKey: queryKeys.collections }),
-      client.invalidateQueries({ queryKey: queryKeys.collectionSummary }),
+      client.invalidateQueries({ queryKey: queryKeys.profileRoot }),
       client.invalidateQueries({ queryKey: queryKeys.decks }),
     ]);
   };
