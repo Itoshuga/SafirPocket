@@ -20,7 +20,9 @@ export function CardImage({
   const src = artworkPath
     ? artworkPath.startsWith('http://') || artworkPath.startsWith('https://')
       ? artworkPath
-      : `/artwork/card/${artworkPath.split('/').map(encodeURIComponent).join('/')}`
+      : artworkPath.startsWith('/')
+        ? artworkPath
+        : `/artwork/card/${artworkPath.split('/').map(encodeURIComponent).join('/')}`
     : null;
   return (
     <div

@@ -50,6 +50,11 @@ Lire avant toute modification : `README.md`, `docs/security.md`, `supabase/migra
 26. Le profil principal consomme les agrégats de collection par saison fournis par l'API. Les
     filtres complets restent dans les routes `collection/[seasonSlug]`; les aperçus sont ordonnés
     par rareté décroissante, numéro croissant puis variante, jamais aléatoirement.
+27. La séquence d'ouverture d'un booster anime exclusivement le résultat persistant renvoyé par
+    l'API. Une reprise, un récapitulatif ou un replay d'historique ne relance jamais le `POST`, ne
+    recalcule aucun tirage et valide toujours les huit positions et leurs catégories serveur. Ne
+    persister une reprise qu'après une interaction significative et préserver la transparence des
+    PNG dans tous les calques de découpe.
 
 ## Chaîne de changement
 

@@ -11,19 +11,20 @@
     "test:e2e": "playwright test"
   },
   "dependencies": {
+    "@hookform/resolvers": "5.4.0",
     "@safir/shared-types": "workspace:*",
     "@safir/ui": "workspace:*",
     "@safir/validation": "workspace:*",
     "@supabase/ssr": "0.12.3",
     "@supabase/supabase-js": "2.110.7",
     "@tanstack/react-query": "5.101.2",
-    "@hookform/resolvers": "5.4.0",
     "lucide-react": "1.25.0",
     "next": "16.2.10",
     "react": "19.2.7",
     "react-dom": "19.2.7",
     "react-hook-form": "7.81.0",
     "socket.io-client": "4.8.3",
+    "three": "0.185.1",
     "zod": "4.4.3",
     "zustand": "5.0.14"
   },
@@ -34,6 +35,7 @@
     "@types/node": "24.13.3",
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
+    "@types/three": "0.185.1",
     "tailwindcss": "4.3.3",
     "typescript": "5.9.3",
     "vitest": "4.1.10"

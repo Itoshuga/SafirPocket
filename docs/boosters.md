@@ -50,6 +50,39 @@ La contrainte `(user_id, idempotency_key)` empêche les replays. Une nouvelle ac
 génère un UUID; une relance réseau réutilise le même UUID et retourne l’ouverture achevée sans
 nouveau débit ni nouveau tirage.
 
+## Séquence visuelle et reprise
+
+Après le succès du `POST`, le client place le résultat autoritaire dans le cache TanStack Query et
+navigue vers `/boosters/open/[openingId]`. Cette route recharge au besoin
+`GET /api/v1/me/pack-openings/:id`, qui vérifie le propriétaire. La scène ne tire aucune carte et ne
+modifie jamais les quantités : elle trie et valide les huit emplacements reçus, puis anime ce
+résultat déjà persisté.
+
+La séquence suit une machine d’états typée : chargement, préchargement des visuels, coupe,
+ouverture, sortie des cartes, révélation unitaire, récapitulatif et fin. Les emplacements 1 à 6
+doivent être `COMMON` et les emplacements 7 et 8 `PREMIUM`; un résultat incomplet, dupliqué ou mal
+catégorisé est refusé. Les seuils de coupe et de balayage sont centralisés et les gestes gauche et
+droite avancent tous deux vers la carte suivante. Le clavier propose les mêmes actions.
+
+Une progression locale versionnée par `openingId` permet de reprendre après actualisation. Elle
+n’est écrite qu’après une interaction significative, à partir de la coupe validée, expire après
+sept jours et est supprimée au récapitulatif. Les formats invalides, incohérents ou rattachés à une
+autre ouverture sont supprimés. Cette progression n’est jamais une source métier : le résultat
+complet est relu depuis l’API.
+
+Le mode d’entrée est décidé une seule fois après le chargement : récapitulatif demandé, replay,
+marqueur frais en `sessionStorage`, progression significative à reprendre, puis ouverture fraîche
+par défaut. Le marqueur posé juste avant la navigation depuis le catalogue est consommé de manière
+idempotente. Une ouverture sans progression, y compris après un rechargement avant la coupe,
+revient directement au booster fermé sans modal. `/boosters/history` propose le récapitulatif et un
+replay visuel; ces actions ne rappellent jamais le `POST` d’ouverture.
+
+Les images du booster et des huit cartes sont préchargées avec un délai maximal et un fallback. Le
+PNG du booster est rendu avec `next/image`, `object-contain` et un parent transparent; ses deux
+calques découpés partagent une ombre `drop-shadow` de silhouette, sans surface rectangulaire. La
+scène Three.js est chargée uniquement sur la route d’ouverture. En mouvement réduit, les
+transitions sont supprimées et les boutons restent l’action principale accessible.
+
 ## Administration et sécurité
 
 Les permissions `BOOSTERS_READ_ADMIN`, `BOOSTERS_CREATE`, `BOOSTERS_UPDATE`,

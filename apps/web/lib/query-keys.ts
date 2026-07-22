@@ -41,6 +41,7 @@ export const queryKeys = {
   decks: ['decks'] as const,
   deck: (id: string) => ['deck', id] as const,
   boosterProducts: ['booster-products'] as const,
+  boosterOpeningsRoot: ['booster-openings'] as const,
   boosterOpenings: (filters = 'page=1&pageSize=12') => ['booster-openings', filters] as const,
   boosterOpening: (id: string) => ['booster-opening', id] as const,
   boosterDropRates: (id: string) => ['booster-drop-rates', id] as const,

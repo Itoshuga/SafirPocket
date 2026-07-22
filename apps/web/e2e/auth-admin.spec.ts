@@ -333,17 +333,22 @@ async function mockSupabaseAuth(page: Page) {
   await page.route('**/auth/v1/logout**', (route) => route.fulfill({ status: 204 }));
 }
 
-async function mockAdminApi(page: Page, actorProfile = profile) {
+async function mockAdminApi(
+  page: Page,
+  actorProfile = profile,
+  options: { failBoosterImage?: boolean } = {},
+) {
   await mockSupabaseAuth(page);
-  await page.route('https://example.com/booster.webp', (route) =>
-    route.fulfill({
+  await page.route('https://example.com/booster.webp', (route) => {
+    if (options.failBoosterImage) return route.abort('failed');
+    return route.fulfill({
       contentType: 'image/png',
       body: Buffer.from(
         'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
         'base64',
       ),
-    }),
-  );
+    });
+  });
   const mutations: Array<{ method: string; path: string; body: unknown }> = [];
   let createdSeason: CardSeason | null = null;
   let targetStatus: 'ACTIVE' | 'SUSPENDED' = 'ACTIVE';
@@ -438,6 +443,18 @@ async function mockAdminApi(page: Page, actorProfile = profile) {
       return route.fulfill({ json: [profileSeasonSummary] });
     }
     if (path.endsWith('/me/wallets')) return route.fulfill({ json: [] });
+    if (path.endsWith(`/me/pack-openings/${openingResult.openingId}`)) {
+      return route.fulfill({
+        json: {
+          id: openingResult.openingId,
+          booster: openingResult.booster,
+          status: 'completed',
+          cost: openingResult.cost,
+          openedAt: openingResult.openedAt,
+          cards: openingResult.cards,
+        },
+      });
+    }
     if (path.endsWith('/me/pack-openings')) {
       return route.fulfill({
         json: {
@@ -830,6 +847,65 @@ async function expectNoHorizontalOverflowAtSupportedWidths(page: Page) {
   }
 }
 
+async function expectOpeningSceneAtSupportedViewports(page: Page) {
+  const viewports = [
+    { width: 375, height: 667 },
+    { width: 390, height: 844 },
+    { width: 430, height: 932 },
+    { width: 768, height: 1024 },
+    { width: 1024, height: 768 },
+    { width: 1280, height: 800 },
+    { width: 1440, height: 900 },
+  ];
+  for (const viewport of viewports) {
+    await page.setViewportSize(viewport);
+    const packBounds = await page.getByTestId('interactive-booster-pack').boundingBox();
+    const instructionBounds = await page.getByTestId('booster-cut-instruction').boundingBox();
+    if (!packBounds || !instructionBounds) throw new Error('The booster scene is incomplete.');
+    const minimumWidth = viewport.width >= 1024 ? 330 : viewport.width >= 430 ? 300 : 275;
+    expect(packBounds.width).toBeGreaterThanOrEqual(minimumWidth);
+    expect(packBounds.height).toBeLessThanOrEqual(viewport.height * 0.73);
+    expect(packBounds.y).toBeGreaterThanOrEqual(0);
+    expect(packBounds.y + packBounds.height).toBeLessThanOrEqual(instructionBounds.y + 1);
+    expect(instructionBounds.y + instructionBounds.height).toBeLessThan(viewport.height);
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+      ),
+    ).toBe(true);
+    expect((await page.screenshot({ animations: 'disabled' })).byteLength).toBeGreaterThan(1_000);
+  }
+}
+
+async function swipeOpeningCard(page: Page, direction: -1 | 1) {
+  const card = page.getByTestId('opening-card');
+  const bounds = await card.boundingBox();
+  if (!bounds) throw new Error('The opening card is not visible.');
+  const startX = bounds.x + bounds.width / 2;
+  const y = bounds.y + bounds.height / 2;
+  const hasTouch = await page.evaluate(() => navigator.maxTouchPoints > 0);
+  if (hasTouch) {
+    const session = await page.context().newCDPSession(page);
+    await session.send('Input.dispatchTouchEvent', {
+      type: 'touchStart',
+      touchPoints: [{ x: startX, y, id: 1 }],
+    });
+    for (let step = 1; step <= 8; step += 1) {
+      await session.send('Input.dispatchTouchEvent', {
+        type: 'touchMove',
+        touchPoints: [{ x: startX + (direction * 150 * step) / 8, y, id: 1 }],
+      });
+    }
+    await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    await session.detach();
+    return;
+  }
+  await page.mouse.move(startX, y);
+  await page.mouse.down();
+  await page.mouse.move(startX + direction * 150, y, { steps: 8 });
+  await page.mouse.up();
+}
+
 test.describe('authenticated administration workflows', () => {
   test('keeps catalogue and profile collection aligned without mixing ownership', async ({
     page,
@@ -967,6 +1043,7 @@ test.describe('authenticated administration workflows', () => {
   test('creates a configured booster and reveals the server-provided eight cards', async ({
     page,
   }) => {
+    test.setTimeout(60_000);
     const openingViewport = page.viewportSize() ?? { width: 1280, height: 720 };
     const consoleErrors: string[] = [];
     const failedResponses: string[] = [];
@@ -1014,17 +1091,156 @@ test.describe('authenticated administration workflows', () => {
     await page.setViewportSize(openingViewport);
     await page.getByRole('button', { name: 'Ouvrir', exact: true }).click();
     await page.getByRole('dialog').getByRole('button', { name: 'Confirmer l’ouverture' }).click();
-    await expect(page.getByRole('dialog').getByText('Nouvelle carte')).toHaveCount(8);
+    await expect(page).toHaveURL(new RegExp(`/boosters/open/${openingResult.openingId}$`));
+    await expect(page.getByRole('heading', { name: 'Reprendre cette ouverture ?' })).toHaveCount(0);
+    await expect(page.getByTestId('open-booster-button')).toBeVisible();
+    await expect(page.getByTestId('booster-studio-canvas')).toBeVisible();
+    await expectOpeningSceneAtSupportedViewports(page);
+    await page.setViewportSize(openingViewport);
+    const transparentArtwork = page.getByTestId('transparent-booster-artwork');
+    await expect(transparentArtwork).toHaveCount(2);
+    expect(
+      await transparentArtwork.first().evaluate((container) => {
+        const image = container.querySelector('img');
+        return {
+          backgroundColor: getComputedStyle(container).backgroundColor,
+          objectFit: image ? getComputedStyle(image).objectFit : null,
+        };
+      }),
+    ).toEqual({ backgroundColor: 'rgba(0, 0, 0, 0)', objectFit: 'contain' });
+    expect(
+      await page.getByTestId('booster-pack-visual').evaluate((visual) => ({
+        backgroundColor: getComputedStyle(visual).backgroundColor,
+        filter: getComputedStyle(visual).filter,
+      })),
+    ).toMatchObject({ backgroundColor: 'rgba(0, 0, 0, 0)' });
+    expect(
+      await page
+        .getByTestId('booster-pack-visual')
+        .evaluate((visual) => getComputedStyle(visual).filter.includes('drop-shadow')),
+    ).toBe(true);
+    expect(
+      await page.getByTestId('booster-studio-canvas').evaluate((canvas) => {
+        const element = canvas as HTMLCanvasElement;
+        const context =
+          element.getContext('webgl2', { preserveDrawingBuffer: true }) ??
+          element.getContext('webgl', { preserveDrawingBuffer: true });
+        if (!context) return false;
+        const pixel = new Uint8Array(4);
+        context.readPixels(
+          Math.floor(element.width / 2),
+          Math.floor(element.height / 2),
+          1,
+          1,
+          context.RGBA,
+          context.UNSIGNED_BYTE,
+          pixel,
+        );
+        const [red = 0, green = 0, blue = 0, alpha = 0] = pixel;
+        return alpha > 0 && red + green + blue > 0;
+      }),
+    ).toBe(true);
+    await page.getByTestId('open-booster-button').click();
+    await expect(page.getByTestId('opening-card')).toHaveAttribute('data-card-index', '0');
+    await swipeOpeningCard(page, 1);
+    await expect(page.getByTestId('opening-card')).toHaveAttribute('data-card-index', '1');
+    await swipeOpeningCard(page, -1);
+    await expect(page.getByTestId('opening-card')).toHaveAttribute('data-card-index', '2');
+    for (let index = 2; index < 8; index += 1) {
+      await page.getByTestId('next-card-button').click();
+    }
+    await expect(page.getByRole('dialog').getByText('Nouvelle', { exact: true })).toHaveCount(8);
     await expect(page.getByRole('dialog').locator('[data-slot-category="COMMON"]')).toHaveCount(6);
     await expect(page.getByRole('dialog').locator('[data-slot-category="PREMIUM"]')).toHaveCount(2);
-    await page.getByRole('dialog').getByRole('link', { name: 'Voir ma collection' }).click();
-    await expect(page).toHaveURL(/\/profile#collection$/);
+    expect(
+      await page.evaluate(
+        (id) => window.localStorage.getItem(`safir:booster-opening:${id}`),
+        openingResult.openingId,
+      ),
+    ).toBeNull();
+    await page.getByRole('dialog').getByRole('link', { name: 'Voir mon profil' }).click();
+    await expect(page).toHaveURL(/\/profile\/collection\/origines$/);
     expect(
       await page.evaluate(
         () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
       ),
     ).toBe(true);
     expect({ consoleErrors, failedResponses }).toEqual({ consoleErrors: [], failedResponses: [] });
+  });
+
+  test('resumes, exits and replays a persisted opening without another draw', async ({ page }) => {
+    const consoleErrors: string[] = [];
+    page.on('console', (message) => {
+      if (message.type() === 'error') consoleErrors.push(message.text());
+    });
+    const mutations = await mockAdminApi(page);
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await login(page);
+
+    await page.goto(`/boosters/open/${openingResult.openingId}`);
+    await expect(page.getByRole('heading', { name: 'Reprendre cette ouverture ?' })).toHaveCount(0);
+    await expect(page.getByTestId('open-booster-button')).toBeVisible();
+    expect(
+      await page.evaluate(
+        (id) => window.localStorage.getItem(`safir:booster-opening:${id}`),
+        openingResult.openingId,
+      ),
+    ).toBeNull();
+
+    await page.reload();
+    await expect(page.getByRole('heading', { name: 'Reprendre cette ouverture ?' })).toHaveCount(0);
+    await expect(page.getByTestId('open-booster-button')).toBeVisible();
+    await expect(page.getByTestId('booster-studio-canvas')).toHaveAttribute(
+      'data-reduced-motion',
+      'true',
+    );
+    await page.getByTestId('open-booster-button').click();
+    await expect(page.getByTestId('opening-card')).toHaveAttribute('data-card-index', '0');
+    await page.getByTestId('next-card-button').click();
+    await expect(page.getByTestId('opening-card')).toHaveAttribute('data-card-index', '1');
+
+    await page.reload();
+    let dialog = page.getByRole('dialog');
+    await expect(
+      dialog.getByRole('heading', { name: 'Reprendre cette ouverture ?' }),
+    ).toBeVisible();
+    await dialog.getByRole('button', { name: "Continuer l'ouverture" }).click();
+    await expect(page.getByTestId('opening-card')).toHaveAttribute('data-card-index', '1');
+    await page.keyboard.press('Escape');
+    dialog = page.getByRole('dialog');
+    await expect(dialog.getByRole('heading', { name: 'Quitter la séquence ?' })).toBeVisible();
+    await dialog.getByRole('button', { name: 'Voir le récapitulatif' }).click();
+    await expect(page.getByRole('dialog').locator('li')).toHaveCount(8);
+    await page.getByRole('dialog').getByRole('link', { name: 'Terminer' }).click();
+
+    await expect(page).toHaveURL(/\/boosters\/history$/);
+    await expect(page.getByRole('heading', { name: 'Historique des ouvertures' })).toBeVisible();
+    await page.getByRole('link', { name: 'Rejouer' }).click();
+    await expect(page).toHaveURL(
+      new RegExp(`/boosters/open/${openingResult.openingId}\\?replay=1$`),
+    );
+    await expect(page.getByTestId('open-booster-button')).toBeVisible();
+    expect(
+      mutations.filter(
+        ({ path, method }) =>
+          path.endsWith(`/booster-products/${boosterId}/open`) && method === 'POST',
+      ),
+    ).toHaveLength(0);
+    expect(consoleErrors).toEqual([]);
+  });
+
+  test('shows a neutral fallback only when the booster artwork fails', async ({ page }) => {
+    await mockAdminApi(page, profile, { failBoosterImage: true });
+    await login(page);
+
+    await page.goto(`/boosters/open/${openingResult.openingId}`);
+    await expect(page.getByTestId('open-booster-button')).toBeVisible();
+    await expect(page.getByTestId('transparent-booster-artwork')).toHaveCount(2);
+    await expect(page.getByTestId('booster-artwork-fallback')).toHaveCount(2);
+    await expect(page.getByTestId('transparent-booster-artwork').first()).toHaveAttribute(
+      'data-image-state',
+      'missing',
+    );
   });
 
   test('previews an import and downloads filtered card exports', async ({ page }) => {

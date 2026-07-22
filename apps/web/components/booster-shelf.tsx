@@ -5,7 +5,6 @@ import type {
   BoosterProduct,
   OpenBoosterResult,
   PackOpening,
-  PaginatedResponse,
   WalletSummary,
 } from '@safir/shared-types';
 import {
@@ -13,10 +12,8 @@ import {
   Button,
   Card,
   ConfirmDialog,
-  Dialog,
   EmptyState,
   ErrorState,
-  Pagination,
   Panel,
   Popover,
   Skeleton,
@@ -24,8 +21,14 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Coins, History, PackageOpen } from 'lucide-react';
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { useState } from 'react';
 import { apiFetch } from '@/lib/api-client';
+import {
+  clearOtherStoredOpeningProgress,
+  freshOpeningSessionKey,
+  removeStoredOpeningProgress,
+} from '@/lib/booster-opening';
 import { profileQueryKeys, queryKeys } from '@/lib/query-keys';
 import { useAppStore } from '@/stores/app-store';
 import { useAuth } from './auth-provider';
@@ -37,14 +40,11 @@ interface OpeningAttempt {
 }
 
 export function BoosterShelf() {
+  const router = useRouter();
   const client = useQueryClient();
   const { user, loading: authLoading } = useAuth();
   const notify = useAppStore((state) => state.notify);
   const [attempt, setAttempt] = useState<OpeningAttempt | null>(null);
-  const [result, setResult] = useState<OpenBoosterResult | null>(null);
-  const [revealed, setRevealed] = useState(0);
-  const [historyPage, setHistoryPage] = useState(1);
-  const historyFilters = `page=${historyPage}&pageSize=8`;
   const products = useQuery({
     queryKey: queryKeys.boosterProducts,
     queryFn: () => apiFetch<BoosterProduct[]>('/api/v1/booster-products'),
@@ -52,12 +52,6 @@ export function BoosterShelf() {
   const wallets = useQuery({
     queryKey: queryKeys.wallets,
     queryFn: () => apiFetch<WalletSummary[]>('/api/v1/me/wallets'),
-    enabled: Boolean(user),
-  });
-  const history = useQuery({
-    queryKey: queryKeys.boosterOpenings(historyFilters),
-    queryFn: () =>
-      apiFetch<PaginatedResponse<PackOpening>>(`/api/v1/me/pack-openings?${historyFilters}`),
     enabled: Boolean(user),
   });
   const opening = useMutation({
@@ -68,33 +62,30 @@ export function BoosterShelf() {
       }),
     onSuccess: (data) => {
       setAttempt(null);
-      setResult(data);
-      setRevealed(window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 8 : 0);
+      const openingResult: PackOpening = {
+        id: data.openingId,
+        booster: data.booster,
+        status: 'completed',
+        cost: data.cost,
+        openedAt: data.openedAt,
+        cards: data.cards,
+      };
+      client.setQueryData(queryKeys.boosterOpening(data.openingId), openingResult);
+      clearOtherStoredOpeningProgress(data.openingId);
+      removeStoredOpeningProgress(data.openingId);
+      window.sessionStorage.setItem(freshOpeningSessionKey(data.openingId), 'true');
       notify('Booster ouvert et collection mise à jour.', 'success');
       void Promise.all([
         client.invalidateQueries({ queryKey: queryKeys.wallets }),
-        client.invalidateQueries({ queryKey: ['booster-openings'] }),
-        client.invalidateQueries({ queryKey: ['collection'] }),
+        client.invalidateQueries({ queryKey: queryKeys.boosterOpeningsRoot }),
+        client.invalidateQueries({ queryKey: queryKeys.collections }),
         client.invalidateQueries({ queryKey: profileQueryKeys.stats.me() }),
         client.invalidateQueries({ queryKey: profileQueryKeys.seasonCollections('me') }),
       ]);
+      router.push(`/boosters/open/${encodeURIComponent(data.openingId)}`);
     },
     onError: (error) => notify(error.message, 'error'),
   });
-
-  useEffect(() => {
-    if (!result) return;
-    const timer = window.setInterval(() => {
-      setRevealed((count) => {
-        if (count >= 8) {
-          window.clearInterval(timer);
-          return count;
-        }
-        return count + 1;
-      });
-    }, 140);
-    return () => window.clearInterval(timer);
-  }, [result]);
 
   if (products.isLoading) {
     return (
@@ -236,58 +227,14 @@ export function BoosterShelf() {
       )}
 
       {user ? (
-        <section className="mt-9">
-          <div className="mb-4 flex items-center gap-2">
-            <History className="size-4 text-primary" />
-            <h2 className="text-base font-semibold">Mes ouvertures</h2>
-          </div>
-          {history.isLoading ? (
-            <Skeleton className="h-28" />
-          ) : history.isError ? (
-            <ErrorState message="Impossible de charger l’historique." />
-          ) : history.data?.data.length ? (
-            <>
-              <div className="divide-y divide-border rounded-lg border border-border bg-surface">
-                {history.data.data.map((item) => (
-                  <button
-                    type="button"
-                    key={item.id}
-                    onClick={() => {
-                      setResult({
-                        openingId: item.id,
-                        booster: item.booster,
-                        cards: item.cards,
-                        cost: item.cost,
-                        openedAt: item.openedAt,
-                      });
-                      setRevealed(8);
-                    }}
-                    className="flex w-full items-center justify-between gap-4 p-4 text-left hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus-ring"
-                  >
-                    <div>
-                      <p className="text-sm font-semibold">{item.booster.name}</p>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        {item.booster.season.name} · 8 cartes ·{' '}
-                        {new Intl.DateTimeFormat('fr-FR', {
-                          dateStyle: 'medium',
-                          timeStyle: 'short',
-                        }).format(new Date(item.openedAt))}
-                      </p>
-                    </div>
-                    <Badge tone="success">Terminée</Badge>
-                  </button>
-                ))}
-              </div>
-              <Pagination
-                page={history.data.pagination.page}
-                pageCount={history.data.pagination.pageCount}
-                onPageChange={setHistoryPage}
-              />
-            </>
-          ) : (
-            <p className="text-sm text-muted-foreground">Aucune ouverture enregistrée.</p>
-          )}
-        </section>
+        <div className="mt-7 flex justify-end">
+          <Button asChild variant="outline">
+            <Link href="/boosters/history">
+              <History className="size-4" aria-hidden="true" />
+              Historique des ouvertures
+            </Link>
+          </Button>
+        </div>
       ) : null}
 
       <ConfirmDialog
@@ -309,58 +256,6 @@ export function BoosterShelf() {
           if (attempt) opening.mutate(attempt);
         }}
       />
-      <Dialog
-        open={Boolean(result)}
-        onOpenChange={(open) => !open && setResult(null)}
-        title={result ? result.booster.name : 'Résultat'}
-        description="Cartes 1 à 6 communes, cartes 7 et 8 premium."
-      >
-        {result ? (
-          <div>
-            <div className="grid min-h-[25rem] grid-cols-2 gap-3 sm:grid-cols-4">
-              {result.cards.map((item) => (
-                <div
-                  key={item.slotPosition}
-                  data-slot-category={item.slotCategory}
-                  className={`min-w-0 transition duration-200 motion-reduce:transition-none ${item.slotPosition <= revealed ? 'translate-y-0 opacity-100' : 'translate-y-2 opacity-0'} ${item.slotCategory === 'PREMIUM' ? 'rounded-md border-2 border-primary bg-primary-soft p-2' : 'rounded-md border border-border p-2'}`}
-                >
-                  <div
-                    className="aspect-[5/7] rounded-sm bg-surface-muted bg-contain bg-center bg-no-repeat"
-                    style={
-                      item.card.imageUrl
-                        ? {
-                            backgroundImage: `url(${JSON.stringify(item.card.imageUrl).slice(1, -1)})`,
-                          }
-                        : undefined
-                    }
-                  />
-                  <div className="mt-2 flex items-center justify-between gap-2">
-                    <Badge tone={item.slotCategory === 'PREMIUM' ? 'primary' : 'neutral'}>
-                      {item.slotCategory === 'PREMIUM' ? 'Premium' : 'Commune'} · #
-                      {item.slotPosition}
-                    </Badge>
-                    <span className="truncate text-xs text-muted-foreground">
-                      {item.rarity.name}
-                    </span>
-                  </div>
-                  <p className="mt-2 line-clamp-2 text-sm font-semibold">{item.card.name}</p>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {item.isNew
-                      ? 'Nouvelle carte'
-                      : `${item.previousQuantity} → ${item.newQuantity}`}
-                  </p>
-                </div>
-              ))}
-            </div>
-            <div className="mt-5 flex flex-wrap justify-end gap-2">
-              <Button asChild variant="outline">
-                <Link href="/profile#collection">Voir ma collection</Link>
-              </Button>
-              <Button onClick={() => setResult(null)}>Ouvrir un autre booster</Button>
-            </div>
-          </div>
-        ) : null}
-      </Dialog>
     </div>
   );
 }

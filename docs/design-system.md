@@ -44,6 +44,16 @@ panneau de filtres partagé `CardsToolbar` appartient aux routes détaillées de
 contient cinq cartes maximum, sur une rangée horizontale défilable en mobile avec une largeur de
 carte équivalente au desktop, puis cinq colonnes dès `md` sur toute la largeur disponible.
 
+La route d'ouverture d'un booster est la seule expérience plein écran. Son canevas Three.js reste
+un fond de studio clair non interactif; le booster réel, la carte courante et tous les contrôles
+accessibles sont des éléments HTML superposés. La progression montre uniquement la position 1 à 8
+et ne révèle jamais une rareté future. Les gestes horizontaux ont toujours un bouton équivalent,
+les dialogues de reprise et de sortie conservent le focus, et le mode mouvement réduit supprime les
+transitions sans retirer aucune étape fonctionnelle. Le booster fermé utilise un conteneur
+transparent, `object-contain`, une largeur plafonnée par la viewport et la hauteur disponible, et
+un `drop-shadow` appliqué à la silhouette composée. Aucun fond, bordure, rayon ou ombre de boîte ne
+doit entourer un PNG valide; la surface neutre appartient exclusivement au fallback d'erreur.
+
 ## Mise en page responsive
 
 - `lg` et plus : barre latérale de 256 px, contenu plafonné à `max-w-screen-xl`.
@@ -51,7 +61,9 @@ carte équivalente au desktop, puis cinq colonnes dès `md` sur toute la largeur
 - les tableaux ont une représentation `MobileList` sous `md` ; les filtres du catalogue passent dans un drawer ; le deck builder empile composition et collection avant `xl`.
 - les cibles tactiles principales mesurent au moins 40 px et aucune action essentielle ne dépend du survol.
 
-Valider 375, 430, 768, 1024, 1280 et 1440 px, sans débordement horizontal. Les titres restent entre 24 et 48 px selon leur contexte ; les longs paragraphes ne sont pas centrés.
+Valider 375×667, 390×844, 430×932, 768×1024, 1024×768, 1280×800 et 1440×900,
+sans débordement horizontal. Les titres restent entre 24 et 48 px selon leur contexte ; les longs
+paragraphes ne sont pas centrés.
 
 ## Données et formulaires
 

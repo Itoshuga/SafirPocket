@@ -6,7 +6,7 @@ Safir Pocket est la fondation web de collection pour Safir TCG : catalogue de ca
 
 - Monorepo pnpm 11 + Turborepo, Node.js 24 LTS, TypeScript strict
 - Next.js 16, React 19, App Router, Tailwind CSS 4, TanStack Query, Zustand
-- Radix UI, Lucide, class-variance-authority, React Hook Form et Zod
+- Radix UI, Lucide, Three.js, class-variance-authority, React Hook Form et Zod
 - NestJS 11, REST, Socket.IO, Helmet, CORS strict, rate limiting, Pino
 - Supabase Auth, PostgreSQL, Storage, migrations SQL et RLS
 - Prisma 7 comme client typé, avec l’adaptateur PostgreSQL
@@ -192,13 +192,19 @@ L’application utilise exclusivement un thème clair, y compris lorsque le syst
   et exécutés par l’API.
 - `next/image` conserve le ratio des cartes; la route `/artwork/card/*` relaie Storage avec la clé anon publique et laisse les policies RLS contrôler la lecture.
 - `prefers-reduced-motion` est respecté; le profil permet aussi une préférence locale de réduction des animations.
+- L’ouverture immersive d’un booster vit sur `/boosters/open/[openingId]`; elle anime uniquement le
+  résultat serveur persisté, prend en charge gestes et clavier, puis affiche un récapitulatif en
+  liste. Son PNG conserve son canal alpha et une reprise n’est proposée qu’après une interaction
+  locale significative. `/boosters/history` permet de consulter ou rejouer une ouverture sans
+  nouveau tirage.
 
 Voir [docs/design-system.md](docs/design-system.md) pour les conventions complètes.
 
 ## Routes et endpoints applicatifs
 
-Pages publiques : `/`, `/login`, `/cards`, `/cards/[id]`, `/rankings` et
-`/users/[username]`. Pages authentifiées : `/decks`, `/decks/new`, `/decks/[id]`, `/boosters`,
+Pages publiques : `/`, `/login`, `/cards`, `/cards/[id]`, `/rankings`, `/boosters` et
+`/users/[username]`. Pages authentifiées : `/decks`, `/decks/new`, `/decks/[id]`,
+`/boosters/open/[openingId]`, `/boosters/history`,
 `/play`, `/profile`, `/profile/collection/[seasonSlug]` et `/settings/*`. `/profile` regroupe
 l’identité sociale, les statistiques et les aperçus saisonniers de la collection personnelle ;
 `/users/[username]/collection/[seasonSlug]` fournit la vue publique détaillée autorisée. L’ancienne
