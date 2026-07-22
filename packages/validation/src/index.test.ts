@@ -10,6 +10,7 @@ import {
   usernameSchema,
   warningCreateSchema,
   profileUpdateSchema,
+  profileStatsSchema,
   userPreferencesUpdateSchema,
   userSearchQuerySchema,
   accountDeletionRequestSchema,
@@ -43,6 +44,56 @@ describe('shared validation', () => {
     expect(collectionFiltersSchema.safeParse({ sort: '-quantity' }).success).toBe(true);
     expect(cardFiltersSchema.safeParse({ sort: '-quantity' }).success).toBe(false);
     expect(cardFiltersSchema.safeParse({ isCommander: 'yes' }).success).toBe(false);
+  });
+
+  it('validates complete and privacy-filtered profile statistics', () => {
+    expect(
+      profileStatsSchema.safeParse({
+        collection: {
+          uniqueCardsCount: 142,
+          totalCopiesCount: 387,
+          totalAvailableCardsCount: 248,
+          missingCardsCount: 106,
+          completionPercentage: 57.3,
+        },
+        social: { friendsCount: 24 },
+        decks: { totalCount: 6 },
+        game: {
+          gamesPlayed: 48,
+          winsCount: 31,
+          lossesCount: 17,
+          winRatePercentage: 64.6,
+          currentRating: 1200,
+          currentRank: 8,
+        },
+        visibility: {
+          canViewCollectionStats: true,
+          canViewGameStats: true,
+          canViewFriendsCount: true,
+        },
+      }).success,
+    ).toBe(true);
+    expect(
+      profileStatsSchema.safeParse({
+        social: { friendsCount: 2 },
+        decks: { totalCount: 1, publicCount: 1 },
+        visibility: {
+          canViewCollectionStats: false,
+          canViewGameStats: false,
+          canViewFriendsCount: true,
+        },
+      }).success,
+    ).toBe(true);
+    expect(
+      profileStatsSchema.safeParse({
+        collection: { uniqueCardsCount: 1, completionPercentage: 101 },
+        visibility: {
+          canViewCollectionStats: true,
+          canViewGameStats: false,
+          canViewFriendsCount: true,
+        },
+      }).success,
+    ).toBe(false);
   });
 
   it('rejects invalid deck quantities', () => {

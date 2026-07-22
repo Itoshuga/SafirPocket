@@ -44,16 +44,28 @@ function setup(overrides: Record<string, unknown> = {}) {
   const policy = { resolve: vi.fn().mockResolvedValue(access) };
   const stats = {
     get: vi.fn().mockResolvedValue({
-      uniqueCardsCount: 4,
-      totalCardsCount: 9,
-      totalAvailableCardsCount: 20,
-      collectionCompletionPercentage: 20,
-      decksCount: 2,
-      friendsCount: 3,
-      gamesPlayed: 5,
-      winsCount: 2,
-      currentRating: 1200,
-      currentRank: 8,
+      collection: {
+        uniqueCardsCount: 4,
+        totalCopiesCount: 9,
+        totalAvailableCardsCount: 20,
+        missingCardsCount: 16,
+        completionPercentage: 20,
+      },
+      decks: { totalCount: 2, publicCount: 2 },
+      social: { friendsCount: 3 },
+      game: {
+        gamesPlayed: 5,
+        winsCount: 2,
+        lossesCount: 3,
+        winRatePercentage: 40,
+        currentRating: 1200,
+        currentRank: 8,
+      },
+      visibility: {
+        canViewCollectionStats: true,
+        canViewGameStats: true,
+        canViewFriendsCount: true,
+      },
     }),
   };
   return { service: new UsersService({} as never, policy as never, stats as never), policy, stats };
@@ -98,8 +110,8 @@ describe('UsersService public profile', () => {
     });
   });
 
-  it('masks quantities and completion independently in public statistics', async () => {
-    const { service } = setup({
+  it('requests only authorized collection fields and public decks', async () => {
+    const { service, stats } = setup({
       permissions: {
         ...fullPermissions,
         canViewQuantities: false,
@@ -107,8 +119,38 @@ describe('UsersService public profile', () => {
       },
     });
     const result = await service.publicStats('lucas');
-    expect(result).toMatchObject({ uniqueCardsCount: 4, decksCount: 2, friendsCount: 3 });
-    expect(result).not.toHaveProperty('totalCardsCount');
-    expect(result).not.toHaveProperty('collectionCompletionPercentage');
+    expect(result).toMatchObject({
+      collection: { uniqueCardsCount: 4 },
+      decks: { totalCount: 2, publicCount: 2 },
+      social: { friendsCount: 3 },
+    });
+    expect(stats.get).toHaveBeenCalledWith(profile.id, {
+      includeCollection: true,
+      includeCollectionQuantities: false,
+      includeCollectionCompletion: false,
+      includeGame: true,
+      publicDecksOnly: true,
+    });
+  });
+
+  it('does not request hidden collection or game aggregates', async () => {
+    const { service, stats } = setup({
+      preferences: {
+        profileVisibility: 'PUBLIC',
+        collectionVisibility: 'PUBLIC',
+        showCollectionStats: false,
+        showGameStats: false,
+      },
+    });
+
+    await service.publicStats('lucas');
+
+    expect(stats.get).toHaveBeenCalledWith(profile.id, {
+      includeCollection: false,
+      includeCollectionQuantities: false,
+      includeCollectionCompletion: false,
+      includeGame: false,
+      publicDecksOnly: true,
+    });
   });
 });

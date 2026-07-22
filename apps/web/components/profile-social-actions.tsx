@@ -37,6 +37,8 @@ export function ProfileSocialActions({
       setConfirmation(null);
       await Promise.all([
         client.invalidateQueries({ queryKey: profileQueryKeys.public(username) }),
+        client.invalidateQueries({ queryKey: profileQueryKeys.stats.me() }),
+        client.invalidateQueries({ queryKey: profileQueryKeys.stats.public(username) }),
         client.invalidateQueries({ queryKey: queryKeys.friends }),
         client.invalidateQueries({ queryKey: queryKeys.friendRequestsReceived }),
         client.invalidateQueries({ queryKey: queryKeys.friendRequestsSent }),

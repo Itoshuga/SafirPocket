@@ -21,7 +21,7 @@ import { CheckCircle2, Pencil, Plus, Trash2, TriangleAlert } from 'lucide-react'
 import { useRouter } from 'next/navigation';
 import { useDeferredValue, useState, type FormEvent } from 'react';
 import { apiFetch } from '@/lib/api-client';
-import { queryKeys } from '@/lib/query-keys';
+import { profileQueryKeys, queryKeys } from '@/lib/query-keys';
 import { useAppStore } from '@/stores/app-store';
 import { TcgCard } from './tcg-card';
 
@@ -48,7 +48,6 @@ export function DeckDetailView({ id }: { id: string }) {
     await Promise.all([
       client.invalidateQueries({ queryKey: queryKeys.deck(id) }),
       client.invalidateQueries({ queryKey: queryKeys.collections }),
-      client.invalidateQueries({ queryKey: queryKeys.profileRoot }),
       client.invalidateQueries({ queryKey: queryKeys.decks }),
     ]);
   };
@@ -81,6 +80,10 @@ export function DeckDetailView({ id }: { id: string }) {
     mutationFn: () => apiFetch(`/api/v1/me/decks/${id}`, { method: 'DELETE' }),
     onSuccess: () => {
       notify('Deck supprimé.', 'success');
+      void Promise.all([
+        client.invalidateQueries({ queryKey: queryKeys.decks }),
+        client.invalidateQueries({ queryKey: profileQueryKeys.stats.me() }),
+      ]);
       router.push('/decks');
     },
     onError: (error) => notify(error.message, 'error'),

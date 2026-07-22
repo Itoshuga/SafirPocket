@@ -3,16 +3,19 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Button, Card, ErrorState, Input, Select, Textarea } from '@safir/ui';
 import { deckCreateSchema } from '@safir/validation';
+import { useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import type { z } from 'zod';
 import { ApiClientError, apiFetch } from '@/lib/api-client';
+import { profileQueryKeys, queryKeys } from '@/lib/query-keys';
 
 export function DeckForm() {
   const deckFormSchema = deckCreateSchema.omit({ metadata: true });
   type DeckFormInput = z.input<typeof deckFormSchema>;
   type DeckFormOutput = z.output<typeof deckFormSchema>;
   const router = useRouter();
+  const client = useQueryClient();
   const form = useForm<DeckFormInput, unknown, DeckFormOutput>({
     resolver: zodResolver(deckFormSchema),
     defaultValues: { name: '', description: null, visibility: 'private', format: 'open' },
@@ -24,6 +27,10 @@ export function DeckForm() {
         method: 'POST',
         body: JSON.stringify({ ...values, metadata: {} }),
       });
+      await Promise.all([
+        client.invalidateQueries({ queryKey: queryKeys.decks }),
+        client.invalidateQueries({ queryKey: profileQueryKeys.stats.me() }),
+      ]);
       router.push(`/decks/${deck.id}`);
     } catch (error) {
       form.setError('root', {

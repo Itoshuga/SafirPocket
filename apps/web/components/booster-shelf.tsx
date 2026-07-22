@@ -26,7 +26,7 @@ import { Coins, History, PackageOpen } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { apiFetch } from '@/lib/api-client';
-import { queryKeys } from '@/lib/query-keys';
+import { profileQueryKeys, queryKeys } from '@/lib/query-keys';
 import { useAppStore } from '@/stores/app-store';
 import { useAuth } from './auth-provider';
 import { BoosterArtwork } from './booster-artwork';
@@ -75,7 +75,8 @@ export function BoosterShelf() {
         client.invalidateQueries({ queryKey: queryKeys.wallets }),
         client.invalidateQueries({ queryKey: ['booster-openings'] }),
         client.invalidateQueries({ queryKey: ['collection'] }),
-        client.invalidateQueries({ queryKey: queryKeys.profileRoot }),
+        client.invalidateQueries({ queryKey: profileQueryKeys.stats.me() }),
+        client.invalidateQueries({ queryKey: profileQueryKeys.seasonCollections('me') }),
       ]);
     },
     onError: (error) => notify(error.message, 'error'),

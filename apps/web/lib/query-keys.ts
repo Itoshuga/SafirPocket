@@ -1,16 +1,20 @@
 const collectionRoot = ['collection'] as const;
 const cardsRoot = ['cards'] as const;
 const profileRoot = ['profile'] as const;
+const profileStatsRoot = [...profileRoot, 'stats'] as const;
 
 export const profileQueryKeys = {
   root: profileRoot,
   me: () => [...profileRoot, 'me'] as const,
-  stats: () => [...profileRoot, 'me', 'stats'] as const,
+  stats: {
+    root: profileStatsRoot,
+    me: () => [...profileStatsRoot, 'me'] as const,
+    public: (username: string) =>
+      [...profileStatsRoot, 'public', username.toLocaleLowerCase('fr')] as const,
+  },
   summary: () => [...profileRoot, 'me', 'summary'] as const,
   public: (username: string) =>
     [...profileRoot, 'public', username.toLocaleLowerCase('fr')] as const,
-  publicStats: (username: string) =>
-    [...profileRoot, 'public', username.toLocaleLowerCase('fr'), 'stats'] as const,
   collection: (username: string, filters: string) =>
     [...profileRoot, 'public', username.toLocaleLowerCase('fr'), 'collection', filters] as const,
   seasonCollections: (username: string) =>
@@ -43,11 +47,11 @@ export const queryKeys = {
   wallets: ['wallets'] as const,
   profileRoot,
   profile: profileQueryKeys.me(),
-  profileStats: profileQueryKeys.stats(),
+  profileStats: profileQueryKeys.stats.me(),
   profileSummary: profileQueryKeys.summary(),
   preferences: ['preferences'] as const,
   publicProfile: profileQueryKeys.public,
-  publicProfileStats: profileQueryKeys.publicStats,
+  publicProfileStats: profileQueryKeys.stats.public,
   publicProfileCollection: profileQueryKeys.collection,
   profileSeasonCollections: profileQueryKeys.seasonCollections,
   profileSeasonCollection: profileQueryKeys.seasonCollection,

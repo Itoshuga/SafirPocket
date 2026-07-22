@@ -187,31 +187,51 @@ export interface UserPreferences {
   updatedAt: string;
 }
 
-export interface ProfileStats {
+export interface ProfileCollectionStats {
+  /** Plusieurs variantes possédées d'une même carte ne comptent qu'une fois. */
   uniqueCardsCount: number;
-  totalCardsCount: number;
-  totalAvailableCardsCount: number;
-  collectionCompletionPercentage: number;
-  decksCount: number;
+  /** Somme des quantités de toutes les variantes possédées, si elle est visible. */
+  totalCopiesCount?: number;
+  totalAvailableCardsCount?: number;
+  missingCardsCount?: number;
+  completionPercentage?: number;
+  completedSeasonsCount?: number;
+  startedSeasonsCount?: number;
+}
+
+export interface ProfileSocialStats {
   friendsCount: number;
+}
+
+export interface ProfileDeckStats {
+  totalCount: number;
+  publicCount?: number;
+}
+
+export interface ProfileGameStats {
   gamesPlayed: number;
   winsCount: number;
+  lossesCount: number;
+  winRatePercentage: number;
   currentRating: number | null;
   currentRank: number | null;
 }
 
-export interface PublicProfileStats {
-  friendsCount: number;
-  totalCardsCount?: number;
-  uniqueCardsCount?: number;
-  totalAvailableCardsCount?: number;
-  collectionCompletionPercentage?: number;
-  decksCount?: number;
-  gamesPlayed?: number;
-  winsCount?: number;
-  currentRating?: number | null;
-  currentRank?: number | null;
+export interface ProfileStatsVisibility {
+  canViewCollectionStats: boolean;
+  canViewGameStats: boolean;
+  canViewFriendsCount: boolean;
 }
+
+export interface ProfileStats {
+  collection?: ProfileCollectionStats;
+  social?: ProfileSocialStats;
+  decks?: ProfileDeckStats;
+  game?: ProfileGameStats;
+  visibility: ProfileStatsVisibility;
+}
+
+export type PublicProfileStats = ProfileStats;
 
 export interface ProfilePermissions {
   canViewProfile: boolean;
@@ -248,8 +268,6 @@ export interface PublicUserProfile extends ProfileIdentity {
   friendship: { status: FriendshipStatus };
   permissions: ProfilePermissions;
 }
-
-export type ProfileSocialStats = ProfileStats;
 
 export interface ProfileBannerData {
   bannerUrl: string | null;

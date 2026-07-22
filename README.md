@@ -185,8 +185,9 @@ L’application utilise exclusivement un thème clair, y compris lorsque le syst
   administratives vivent exclusivement dans le groupe repliable `Administration` de la navigation
   principale; le drawer mobile réutilise la même configuration et les mêmes permissions.
 - Rayons limités à `sm`, `md` et `lg`, ombres légères et accent saphir unique.
-- Le profil social associe bannière, avatar superposé, identité, actions et statistiques compactes ;
-  sa collection principale est un aperçu de cinq cartes maximum par saison sans filtres avancés.
+- Le profil social associe bannière, avatar superposé, identité, actions et une surface statistique
+  compacte : quatre valeurs principales, progression globale et activité de jeu réelle uniquement.
+  Sa collection principale est un aperçu de cinq cartes maximum par saison sans filtres avancés.
 - Les filtres de catalogue et des collections saisonnières détaillées sont synchronisés avec l’URL
   et exécutés par l’API.
 - `next/image` conserve le ratio des cartes; la route `/artwork/card/*` relaie Storage avec la clé anon publique et laisse les policies RLS contrôler la lecture.
@@ -222,9 +223,10 @@ Les endpoints ajoutés pour la refonte sont notamment :
   cinq cartes maximum par saison ;
 - `GET /api/v1/me/collection/seasons/:seasonSlug` et sa variante publique pour la recherche, les
   filtres de rareté, type, Commandant et possession, le tri et la pagination d’une saison ;
-- `GET /api/v1/me/profile/summary` pour le tableau de bord et le profil ;
+- `GET /api/v1/me/profile/summary` pour les résumés historiques et le tableau de bord ;
 - `GET /api/v1/me/profile/stats` et `GET /api/v1/users/:username/profile-stats` pour les agrégats
-  serveur personnels ou publics ;
+  serveur personnels ou publics : cartes de base uniques, exemplaires, progression, decks, amis et
+  activité de jeu terminée selon les préférences de confidentialité ;
 - `GET /api/v1/rankings` et `GET /api/v1/me/ranking` ;
 - `GET /api/v1/me/wallets` et `GET /api/v1/me/booster-openings` ;
 - `GET /api/v1/admin/overview` pour les compteurs autorisés.

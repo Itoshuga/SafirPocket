@@ -1,14 +1,14 @@
 'use client';
 
 import type { PublicProfileStats, PublicUserProfile } from '@safir/shared-types';
-import { ErrorState, Panel, Skeleton } from '@safir/ui';
+import { Button, ErrorState, Panel, Skeleton } from '@safir/ui';
 import { useQuery } from '@tanstack/react-query';
-import { LockKeyhole } from 'lucide-react';
+import { LockKeyhole, RefreshCw } from 'lucide-react';
 import { apiFetch } from '@/lib/api-client';
-import { queryKeys } from '@/lib/query-keys';
+import { profileQueryKeys, queryKeys } from '@/lib/query-keys';
 import { ProfileCollectionBySeason } from './profile-collection-by-season';
 import { ProfileSocialActions } from './profile-social-actions';
-import { ProfileSocialStats, type ProfileSocialStatItem } from './profile-social-stats';
+import { ProfileStatsOverview, ProfileStatsSkeleton } from './profile-stats-overview';
 import { SocialProfileHeader } from './social-profile-header';
 
 export function PublicProfileView({ username }: { username: string }) {
@@ -19,7 +19,7 @@ export function PublicProfileView({ username }: { username: string }) {
     retry: false,
   });
   const stats = useQuery({
-    queryKey: queryKeys.publicProfileStats(username),
+    queryKey: profileQueryKeys.stats.public(username),
     queryFn: () =>
       apiFetch<PublicProfileStats>(`/api/v1/users/${encodeURIComponent(username)}/profile-stats`),
     enabled: Boolean(profile.data?.permissions.canViewStats),
@@ -32,27 +32,11 @@ export function PublicProfileView({ username }: { username: string }) {
   }
 
   const data = profile.data;
-  const statItems: ProfileSocialStatItem[] = stats.data
-    ? [
-        ...(stats.data.uniqueCardsCount !== undefined
-          ? [{ label: 'Cartes uniques', value: stats.data.uniqueCardsCount }]
-          : []),
-        ...(stats.data.totalCardsCount !== undefined
-          ? [{ label: 'Cartes totales', value: stats.data.totalCardsCount }]
-          : []),
-        ...(stats.data.decksCount !== undefined
-          ? [{ label: 'Decks', value: stats.data.decksCount }]
-          : []),
-        { label: 'Amis', value: stats.data.friendsCount },
-      ]
-    : [];
-
   return (
     <div className="space-y-7">
       <SocialProfileHeader
         profile={data}
         visibility={data.profileVisibility}
-        friendsCount={stats.data?.friendsCount}
         limited={!data.permissions.canViewProfile}
         actions={
           <ProfileSocialActions
@@ -69,15 +53,23 @@ export function PublicProfileView({ username }: { username: string }) {
         </Panel>
       ) : (
         <>
+          {stats.isLoading ? <ProfileStatsSkeleton /> : null}
           {stats.isError ? (
-            <ErrorState message="Les statistiques publiques ne sont pas disponibles." />
-          ) : (
-            <ProfileSocialStats
-              loading={stats.isLoading}
-              items={statItems}
-              completion={stats.data?.collectionCompletionPercentage}
-            />
-          )}
+            <section className="border-y border-border bg-surface px-4 py-5" role="alert">
+              <p className="text-sm font-medium text-foreground">
+                Impossible de charger les statistiques.
+              </p>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="mt-2 px-0"
+                onClick={() => void stats.refetch()}
+              >
+                <RefreshCw className="size-4" /> Réessayer
+              </Button>
+            </section>
+          ) : null}
+          {stats.data ? <ProfileStatsOverview stats={stats.data} ownProfile={false} /> : null}
           <ProfileCollectionBySeason
             username={data.username}
             ownProfile={false}

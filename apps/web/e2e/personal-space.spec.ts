@@ -195,6 +195,65 @@ const emptySeasonSummary = {
   previewCards: [],
 };
 
+const ownProfileStats = {
+  collection: {
+    uniqueCardsCount: 7,
+    totalCopiesCount: 12,
+    totalAvailableCardsCount: 20,
+    missingCardsCount: 13,
+    completionPercentage: 35,
+  },
+  decks: { totalCount: 2 },
+  social: { friendsCount: 1 },
+  game: {
+    gamesPlayed: 4,
+    winsCount: 3,
+    lossesCount: 1,
+    winRatePercentage: 75,
+    currentRating: 1200,
+    currentRank: 8,
+  },
+  visibility: {
+    canViewCollectionStats: true,
+    canViewGameStats: true,
+    canViewFriendsCount: true,
+  },
+};
+
+const publicProfileStats = {
+  collection: {
+    uniqueCardsCount: 7,
+    totalAvailableCardsCount: 20,
+    missingCardsCount: 13,
+    completionPercentage: 35,
+  },
+  decks: { totalCount: 2, publicCount: 2 },
+  social: { friendsCount: 4 },
+  game: {
+    gamesPlayed: 4,
+    winsCount: 3,
+    lossesCount: 1,
+    winRatePercentage: 75,
+    currentRating: 1200,
+    currentRank: 8,
+  },
+  visibility: {
+    canViewCollectionStats: true,
+    canViewGameStats: true,
+    canViewFriendsCount: true,
+  },
+};
+
+const limitedPublicProfileStats = {
+  social: { friendsCount: 2 },
+  decks: { totalCount: 1, publicCount: 1 },
+  visibility: {
+    canViewCollectionStats: false,
+    canViewGameStats: false,
+    canViewFriendsCount: true,
+  },
+};
+
 async function mockPersonalSpace(page: Page) {
   const mutations: string[] = [];
   let currentProfile = { ...profile };
@@ -247,20 +306,7 @@ async function mockPersonalSpace(page: Page) {
     const request = route.request();
     const path = new URL(request.url()).pathname;
     if (path.endsWith('/me/profile/stats')) {
-      return route.fulfill({
-        json: {
-          uniqueCardsCount: 7,
-          totalCardsCount: 12,
-          totalAvailableCardsCount: 20,
-          collectionCompletionPercentage: 35,
-          decksCount: 2,
-          friendsCount: 1,
-          gamesPlayed: 4,
-          winsCount: 3,
-          currentRating: 1200,
-          currentRank: 8,
-        },
-      });
+      return route.fulfill({ json: ownProfileStats });
     }
     if (path.endsWith('/me/profile/summary')) {
       return route.fulfill({
@@ -433,25 +479,13 @@ async function mockPersonalSpace(page: Page) {
       });
     }
     if (path.endsWith('/users/lucas_e2e/profile-stats')) {
-      return route.fulfill({
-        json: {
-          friendsCount: 4,
-          uniqueCardsCount: 7,
-          totalAvailableCardsCount: 20,
-          collectionCompletionPercentage: 35,
-          decksCount: 2,
-          gamesPlayed: 4,
-          winsCount: 3,
-          currentRating: 1200,
-          currentRank: 8,
-        },
-      });
+      return route.fulfill({ json: publicProfileStats });
     }
     if (path.endsWith('/users/friends_only/profile-stats')) {
-      return route.fulfill({ json: { friendsCount: 2, decksCount: 1 } });
+      return route.fulfill({ json: limitedPublicProfileStats });
     }
     if (path.endsWith('/users/moderator_e2e/profile-stats')) {
-      return route.fulfill({ json: { friendsCount: 2, decksCount: 1 } });
+      return route.fulfill({ json: limitedPublicProfileStats });
     }
     if (path.endsWith('/me/collection/seasons/origines')) {
       return route.fulfill({
@@ -549,6 +583,7 @@ async function mockPersonalSpace(page: Page) {
         },
       });
     }
+    if (path.endsWith('/me/decks')) return route.fulfill({ json: [] });
     if (path.endsWith(`/me/collection/card/${cardId}`)) {
       return route.fulfill({
         json: { totalQuantity: 3, lockedQuantity: 1, variants: [], decks: [] },
@@ -657,8 +692,10 @@ test('profile, avatar menu, preferences and social workflows are connected', asy
     /bannière par défaut/,
   );
   await expect(page.getByLabel('Rôle : Utilisateur')).toBeVisible();
-  await expect(page.getByText('Cartes totales')).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Collection' })).toBeVisible();
+  await expect(
+    page.getByTestId('profile-stats-bar').getByText('Cartes possédées', { exact: true }),
+  ).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Collection', exact: true })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Origines' })).toBeVisible();
   await expect(page.getByText('Sentinelle sociale')).toBeVisible();
   await expect(page.getByLabel('Aperçu des cartes de la saison').getByRole('link')).toHaveCount(
@@ -717,6 +754,164 @@ test('profile, avatar menu, preferences and social workflows are connected', asy
     ),
   ).toBe(true);
   expect({ consoleErrors, failedResponses }).toEqual({ consoleErrors: [], failedResponses: [] });
+});
+
+test('profile statistics expose the main values, progress, game activity and destinations', async ({
+  page,
+}) => {
+  await mockPersonalSpace(page);
+  await login(page);
+
+  const statsBar = page.getByTestId('profile-stats-bar');
+  await expect(statsBar.getByRole('listitem')).toHaveCount(4);
+  await expect(statsBar.getByText('Cartes uniques')).toBeVisible();
+  await expect(statsBar.getByText('Cartes possédées', { exact: true })).toBeVisible();
+  await expect(statsBar.getByText('Decks')).toBeVisible();
+  await expect(statsBar.getByText('Amis')).toBeVisible();
+  await expect(
+    page.getByRole('progressbar', { name: /7 cartes uniques possédées sur 20/ }),
+  ).toHaveAttribute('aria-valuenow', '35');
+  await expect(page.getByText('13 cartes à découvrir')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Activité de jeu' })).toBeVisible();
+  await expect(page.getByText(/4 parties · 3 victoires · 75 % de victoire/)).toBeVisible();
+  await expect(page.getByText(/Classement #8 · Cote 1.?200/)).toBeVisible();
+
+  const collectionLink = statsBar.getByRole('link', {
+    name: 'Voir la collection, 7 cartes uniques',
+  });
+  await expect(collectionLink).toHaveAttribute('href', '#collection');
+  await collectionLink.click();
+  await expect(page).toHaveURL(/\/profile#collection$/);
+  await expect(page.getByRole('heading', { name: 'Collection', exact: true })).toBeVisible();
+
+  await expect(statsBar.getByRole('link', { name: 'Voir mes 2 decks' })).toHaveAttribute(
+    'href',
+    '/decks',
+  );
+  await expect(statsBar.getByRole('link', { name: 'Voir mes 1 amis' })).toHaveAttribute(
+    'href',
+    '/settings/friends',
+  );
+  await statsBar.getByRole('link', { name: 'Voir mes 2 decks' }).click();
+  await expect(page).toHaveURL(/\/decks$/);
+});
+
+test('a new profile keeps four zero values and offers the booster action without game activity', async ({
+  page,
+}) => {
+  await mockPersonalSpace(page);
+  await page.route('**/api/v1/me/profile/stats', (route) =>
+    route.fulfill({
+      json: {
+        collection: {
+          uniqueCardsCount: 0,
+          totalCopiesCount: 0,
+          totalAvailableCardsCount: 20,
+          missingCardsCount: 20,
+          completionPercentage: 0,
+        },
+        decks: { totalCount: 0 },
+        social: { friendsCount: 0 },
+        visibility: {
+          canViewCollectionStats: true,
+          canViewGameStats: true,
+          canViewFriendsCount: true,
+        },
+      },
+    }),
+  );
+  await page.route('**/api/v1/me/collection/seasons', (route) => route.fulfill({ json: [] }));
+  await login(page);
+
+  const statsBar = page.getByTestId('profile-stats-bar');
+  await expect(statsBar.getByRole('listitem')).toHaveCount(4);
+  await expect(statsBar.getByText('0', { exact: true })).toHaveCount(4);
+  await expect(page.getByRole('link', { name: 'Ouvrir un booster' })).toHaveAttribute(
+    'href',
+    '/boosters',
+  );
+  await expect(page.getByRole('heading', { name: 'Activité de jeu' })).toHaveCount(0);
+});
+
+test('long statistic values remain readable on a narrow mobile profile', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 900 });
+  await mockPersonalSpace(page);
+  await page.route('**/api/v1/me/profile/stats', (route) =>
+    route.fulfill({
+      json: {
+        collection: {
+          uniqueCardsCount: 123_456_789,
+          totalCopiesCount: 987_654_321,
+          totalAvailableCardsCount: 200_000_000,
+          missingCardsCount: 76_543_211,
+          completionPercentage: 61.7,
+        },
+        decks: { totalCount: 12_345 },
+        social: { friendsCount: 987_654 },
+        visibility: {
+          canViewCollectionStats: true,
+          canViewGameStats: true,
+          canViewFriendsCount: true,
+        },
+      },
+    }),
+  );
+  await login(page);
+
+  const statsBar = page.getByTestId('profile-stats-bar');
+  await expect(statsBar.getByRole('listitem')).toHaveCount(4);
+  const itemWidthsAreContained = await statsBar
+    .getByRole('listitem')
+    .evaluateAll((items) => items.every((item) => item.scrollWidth <= item.clientWidth));
+  expect(itemWidthsAreContained).toBe(true);
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+    ),
+  ).toBe(true);
+});
+
+test('profile statistics use a four-item skeleton without blocking the profile header', async ({
+  page,
+}) => {
+  await mockPersonalSpace(page);
+  let releaseStats: (() => void) | undefined;
+  const statsReady = new Promise<void>((resolve) => {
+    releaseStats = resolve;
+  });
+  await page.route('**/api/v1/me/profile/stats', async (route) => {
+    await statsReady;
+    await route.fulfill({ json: ownProfileStats });
+  });
+  await login(page);
+
+  await expect(page.getByRole('heading', { name: 'Safir E2E' })).toBeVisible();
+  await expect(page.getByTestId('profile-stat-skeleton')).toHaveCount(4);
+  releaseStats?.();
+  await expect(page.getByTestId('profile-stat-skeleton')).toHaveCount(0);
+  await expect(page.getByTestId('profile-stats-overview')).toBeVisible();
+});
+
+test('an isolated statistics error preserves the profile and can be retried', async ({ page }) => {
+  await mockPersonalSpace(page);
+  let attempts = 0;
+  await page.route('**/api/v1/me/profile/stats', (route) => {
+    attempts += 1;
+    if (attempts <= 2) {
+      return route.fulfill({
+        status: 500,
+        json: { code: 'INTERNAL_SERVER_ERROR', message: 'Erreur de test' },
+      });
+    }
+    return route.fulfill({ json: ownProfileStats });
+  });
+  await login(page);
+
+  await expect(page.getByRole('heading', { name: 'Safir E2E' })).toBeVisible();
+  await expect(page.getByText('Impossible de charger les statistiques.')).toBeVisible();
+  await page.getByRole('button', { name: 'Réessayer' }).click();
+  await expect(page.getByTestId('profile-stats-overview')).toBeVisible();
+  expect(attempts).toBe(3);
 });
 
 test('season preview skeletons and loaded previews are limited to five cards', async ({ page }) => {
@@ -786,7 +981,7 @@ test('season collection details own the filters, card details and legacy redirec
 
   await page.goto('/collection');
   await expect(page).toHaveURL(/\/profile#collection$/);
-  await expect(page.getByRole('heading', { name: 'Collection' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Collection', exact: true })).toBeVisible();
 });
 
 test('public profile collection obeys public, friends-only and private access', async ({
@@ -808,6 +1003,15 @@ test('public profile collection obeys public, friends-only and private access', 
     /background-position: center 62%/,
   );
   await expect(page.getByLabel('Rôle : Pionnier')).toBeVisible();
+  const publicStatsBar = page.getByTestId('profile-stats-bar');
+  await expect(publicStatsBar.getByRole('listitem')).toHaveCount(3);
+  await expect(publicStatsBar.getByText('Cartes uniques')).toBeVisible();
+  await expect(publicStatsBar.getByText('Cartes possédées', { exact: true })).toHaveCount(0);
+  await expect(publicStatsBar.locator('a[href="/decks"]')).toHaveCount(0);
+  await expect(
+    page.getByRole('progressbar', { name: /7 cartes uniques possédées sur 20/ }),
+  ).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Activité de jeu' })).toBeVisible();
   await expect(page.getByText('Sentinelle sociale')).toBeVisible();
   await expect(page.getByLabel('Aperçu des cartes de la saison').getByRole('link')).toHaveCount(
     PROFILE_SEASON_PREVIEW_CARD_LIMIT,
@@ -831,12 +1035,20 @@ test('public profile collection obeys public, friends-only and private access', 
   await expect(
     page.getByText('Cette collection est visible uniquement par ses amis.'),
   ).toBeVisible();
+  const limitedStatsBar = page.getByTestId('profile-stats-bar');
+  await expect(limitedStatsBar.getByRole('listitem')).toHaveCount(2);
+  await expect(limitedStatsBar.getByText('Decks')).toBeVisible();
+  await expect(limitedStatsBar.getByText('Amis')).toBeVisible();
+  await expect(limitedStatsBar.getByText('Cartes uniques')).toHaveCount(0);
+  await expect(page.getByText('Progression de la collection')).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'Activité de jeu' })).toHaveCount(0);
   await expect(page.getByText('Sentinelle sociale')).toHaveCount(0);
 
   await page.goto('/users/private_user');
   await expect(page.getByText('Ce profil est privé.')).toBeVisible();
   await expect(page.getByLabel('Rôle : Administrateur')).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Collection' })).toHaveCount(0);
+  await expect(page.getByTestId('profile-stats-overview')).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'Collection', exact: true })).toHaveCount(0);
 
   await page.goto('/users/moderator_e2e');
   await expect(page.getByLabel('Rôle : Modérateur')).toBeVisible();
@@ -876,7 +1088,13 @@ test('profiles remain usable at all requested responsive widths', async ({ page 
     await page.setViewportSize({ width, height: 900 });
     await page.goto('/profile');
     await expect(page.getByRole('heading', { name: 'Safir E2E' })).toBeVisible();
-    await expect(page.getByRole('heading', { name: 'Collection' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Collection', exact: true })).toBeVisible();
+    const ownStatsBar = page.getByTestId('profile-stats-bar');
+    await expect(ownStatsBar.getByRole('listitem')).toHaveCount(4);
+    const ownStatsColumns = await ownStatsBar.evaluate(
+      (element) => getComputedStyle(element).gridTemplateColumns.split(' ').filter(Boolean).length,
+    );
+    expect(ownStatsColumns).toBe(width < 640 ? 2 : 4);
     const ownPreview = page.getByLabel('Aperçu des cartes de la saison');
     await expect(ownPreview.getByRole('link')).toHaveCount(PROFILE_SEASON_PREVIEW_CARD_LIMIT);
     const previewLayout = await ownPreview.evaluate((element) => ({
@@ -911,6 +1129,13 @@ test('profiles remain usable at all requested responsive widths', async ({ page 
     }
     await page.goto('/users/lucas_e2e');
     await expect(page.getByRole('heading', { name: 'Lucas E2E' })).toBeVisible();
+    const publicStatsColumns = await page
+      .getByTestId('profile-stats-bar')
+      .evaluate(
+        (element) =>
+          getComputedStyle(element).gridTemplateColumns.split(' ').filter(Boolean).length,
+      );
+    expect(publicStatsColumns).toBe(width < 640 ? 2 : 3);
     expect(
       await page.evaluate(
         () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,

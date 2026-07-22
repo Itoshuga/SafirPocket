@@ -56,6 +56,23 @@ jamais e-mail, statut de moderation, avertissement, identifiant Auth, preference
 Les statistiques sont chargees separement par `GET /api/v1/users/:username/profile-stats` et sont
 omises selon les preferences de collection et de jeu.
 
+`GET /api/v1/me/profile/stats` et sa variante publique retournent un contrat structure en blocs
+`collection`, `social`, `decks`, `game` et `visibility`. Une carte unique correspond a une carte de
+base (`COUNT DISTINCT card_id`) : ses variantes ne gonflent pas ce compteur. Le nombre de cartes
+possedees additionne toutes les quantites positives (`SUM quantity`). Les deux calculs ignorent les
+cartes non publiees, inactives ou archivees. La progression compare les cartes de base uniques au
+catalogue publie, actif et non archive; le pourcentage est borne a 100 et le nombre manquant a zero.
+
+Le profil personnel compte tous ses decks; le profil public ne compte que les decks publics. Les
+statistiques de jeu reposent uniquement sur les matchs termines et la saison classee active. Le bloc
+`game` est omis lorsqu'il n'existe ni match termine ni cote classee, afin de ne pas fabriquer une
+activite nulle. Si la collection, les quantites, la progression ou le jeu sont masques, le service
+public omet les champs correspondants et ne lance pas leurs agregations. Les donnees masques ne sont
+jamais remplacees par zero.
+
+Le header social, les statistiques et les apercus de collection chargent independamment. Une erreur
+de statistiques conserve donc l'identite et les actions, puis propose une nouvelle tentative locale.
+
 `GET /api/v1/users/:username/collection` conserve le contrat historique. Les profils utilisent
 `GET /api/v1/me/collection/seasons` ou
 `GET /api/v1/users/:username/collection/seasons` pour obtenir les agregats et cinq cartes maximum
@@ -72,10 +89,12 @@ statistiques, a la collection, aux quantites et aux demandes d'amis. Une collect
 exige une ligne d'amitie effective; une demande en attente ne suffit pas. L'endpoint public ne
 retourne jamais les quantites reservees ni les dates d'obtention.
 
-Les familles TanStack Query `profileQueryKeys.seasonCollections(username)` et
-`profileQueryKeys.seasonCollection(username, seasonSlug, filters)` separent les resumes, les pages
-detaillees, le proprietaire et les profils publics. Les mutations d'inventaire invalident la racine
-profil et collection, sans recharger le reste de l'application.
+Les familles TanStack Query `profileQueryKeys.stats.me()`,
+`profileQueryKeys.stats.public(username)`, `profileQueryKeys.seasonCollections(username)` et
+`profileQueryKeys.seasonCollection(username, seasonSlug, filters)` separent les statistiques, les
+resumes, les pages detaillees, le proprietaire et les profils publics. Les mutations d'inventaire,
+de decks, d'amitie ou de confidentialite invalident seulement les familles de statistiques et de
+collection concernees, sans recharger toute l'identite du profil.
 
 `GET /api/v1/users/search` exige une session, au moins deux caracteres, une pagination bornee a 50
 et un rate limit dedie. Les comptes desactives, supprimes, masques par

@@ -22,7 +22,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Search, UserRoundCheck } from 'lucide-react';
 import { useState } from 'react';
 import { apiFetch } from '@/lib/api-client';
-import { queryKeys } from '@/lib/query-keys';
+import { profileQueryKeys, queryKeys } from '@/lib/query-keys';
 import { useAppStore } from '@/stores/app-store';
 import {
   BlockedUserItem,
@@ -75,7 +75,7 @@ export function FriendsSettings() {
       client.invalidateQueries({ queryKey: queryKeys.friendRequestsSent }),
       client.invalidateQueries({ queryKey: queryKeys.blockedUsers }),
       client.invalidateQueries({ queryKey: ['user-search'] }),
-      client.invalidateQueries({ queryKey: queryKeys.profileRoot }),
+      client.invalidateQueries({ queryKey: profileQueryKeys.stats.me() }),
     ]);
   };
   const action = useMutation({

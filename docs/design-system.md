@@ -34,13 +34,15 @@ Pour ajouter un composant partagé :
 
 Les composants métier restent dans `apps/web/components`. `TcgCard` propose les modes `compact`, `grid`, `collection`, `deck`, `detail`. `CardImage` réserve un ratio 5/7, utilise `next/image`, et affiche un fallback neutre sans provoquer de décalage de mise en page.
 
-Le profil social compose `ProfileBanner`, `SocialProfileHeader`, `ProfileSocialStats` et
+Le profil social compose `ProfileBanner`, `SocialProfileHeader`, `ProfileStatsOverview` et
 `ProfileCollectionBySeason`. La bannière conserve environ 2,4:1 sur mobile et 3,5:1 dès `sm`;
-l’avatar chevauche son bord inférieur. Les statistiques utilisent des séparateurs fins, jamais de
-grands widgets. La page principale montre seulement les aperçus saisonniers; le panneau de filtres
-partagé `CardsToolbar` appartient aux routes détaillées de saison. Chaque aperçu contient cinq
-cartes maximum, sur une rangée horizontale défilable en mobile avec une largeur de carte équivalente
-au desktop, puis cinq colonnes dès `md` sur toute la largeur disponible.
+l’avatar chevauche son bord inférieur. Les statistiques forment une seule surface légère avec quatre
+valeurs au maximum, des séparateurs fins et une progression globale, jamais une série de widgets.
+La barre passe de quatre colonnes dès `sm` à deux colonnes sur mobile et s’adapte au nombre de
+valeurs publiques autorisées. La page principale montre seulement les aperçus saisonniers; le
+panneau de filtres partagé `CardsToolbar` appartient aux routes détaillées de saison. Chaque aperçu
+contient cinq cartes maximum, sur une rangée horizontale défilable en mobile avec une largeur de
+carte équivalente au desktop, puis cinq colonnes dès `md` sur toute la largeur disponible.
 
 ## Mise en page responsive
 

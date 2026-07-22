@@ -1,6 +1,6 @@
 import type { AppRole, ProfileVisibility } from '@safir/shared-types';
 import { Avatar, Badge } from '@safir/ui';
-import { CalendarDays, Users } from 'lucide-react';
+import { CalendarDays } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { resolveAvatarUrl } from '@/lib/avatar-url';
 import { ProfileBanner } from './profile-banner';
@@ -21,13 +21,11 @@ interface SocialProfileIdentity {
 export function SocialProfileHeader({
   profile,
   visibility,
-  friendsCount,
   actions,
   limited = false,
 }: {
   profile: SocialProfileIdentity;
   visibility: ProfileVisibility;
-  friendsCount?: number;
   actions?: ReactNode;
   limited?: boolean;
 }) {
@@ -72,13 +70,6 @@ export function SocialProfileHeader({
                 {new Intl.DateTimeFormat('fr-FR', { month: 'long', year: 'numeric' }).format(
                   new Date(memberSince),
                 )}
-              </span>
-            ) : null}
-            {friendsCount !== undefined ? (
-              <span className="inline-flex items-center gap-1.5">
-                <Users className="size-3.5" aria-hidden="true" />
-                <strong className="font-semibold text-foreground">{friendsCount}</strong> ami
-                {friendsCount > 1 ? 's' : ''}
               </span>
             ) : null}
             <Badge tone={visibility === 'PUBLIC' ? 'success' : 'neutral'}>

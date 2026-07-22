@@ -91,6 +91,58 @@ export const userPreferencesUpdateSchema = z
     message: 'Aucune préférence à enregistrer.',
   });
 
+export const profileCollectionStatsSchema = z
+  .object({
+    uniqueCardsCount: z.number().int().nonnegative(),
+    totalCopiesCount: z.number().int().nonnegative().optional(),
+    totalAvailableCardsCount: z.number().int().nonnegative().optional(),
+    missingCardsCount: z.number().int().nonnegative().optional(),
+    completionPercentage: z.number().min(0).max(100).optional(),
+    completedSeasonsCount: z.number().int().nonnegative().optional(),
+    startedSeasonsCount: z.number().int().nonnegative().optional(),
+  })
+  .strict();
+
+export const profileSocialStatsSchema = z
+  .object({ friendsCount: z.number().int().nonnegative() })
+  .strict();
+
+export const profileDeckStatsSchema = z
+  .object({
+    totalCount: z.number().int().nonnegative(),
+    publicCount: z.number().int().nonnegative().optional(),
+  })
+  .strict();
+
+export const profileGameStatsSchema = z
+  .object({
+    gamesPlayed: z.number().int().nonnegative(),
+    winsCount: z.number().int().nonnegative(),
+    lossesCount: z.number().int().nonnegative(),
+    winRatePercentage: z.number().min(0).max(100),
+    currentRating: z.number().int().nullable(),
+    currentRank: z.number().int().positive().nullable(),
+  })
+  .strict();
+
+export const profileStatsVisibilitySchema = z
+  .object({
+    canViewCollectionStats: z.boolean(),
+    canViewGameStats: z.boolean(),
+    canViewFriendsCount: z.boolean(),
+  })
+  .strict();
+
+export const profileStatsSchema = z
+  .object({
+    collection: profileCollectionStatsSchema.optional(),
+    social: profileSocialStatsSchema.optional(),
+    decks: profileDeckStatsSchema.optional(),
+    game: profileGameStatsSchema.optional(),
+    visibility: profileStatsVisibilitySchema,
+  })
+  .strict();
+
 export const userSearchQuerySchema = z.object({
   query: z.string().trim().min(2, 'Saisissez au moins 2 caractères.').max(50),
   page: z.coerce.number().int().min(1).default(1),

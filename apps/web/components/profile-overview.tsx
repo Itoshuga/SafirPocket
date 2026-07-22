@@ -3,13 +3,13 @@
 import type { ProfileStats, UserPreferences, UserProfile } from '@safir/shared-types';
 import { Button, ErrorState, Skeleton } from '@safir/ui';
 import { useQuery } from '@tanstack/react-query';
-import { Share2, ShieldAlert, UserPen } from 'lucide-react';
+import { RefreshCw, Share2, ShieldAlert, UserPen } from 'lucide-react';
 import Link from 'next/link';
 import { apiFetch } from '@/lib/api-client';
-import { queryKeys } from '@/lib/query-keys';
+import { profileQueryKeys, queryKeys } from '@/lib/query-keys';
 import { useAppStore } from '@/stores/app-store';
 import { ProfileCollectionBySeason } from './profile-collection-by-season';
-import { ProfileSocialStats } from './profile-social-stats';
+import { ProfileStatsOverview, ProfileStatsSkeleton } from './profile-stats-overview';
 import { SocialProfileHeader } from './social-profile-header';
 
 export function ProfileOverview() {
@@ -23,7 +23,7 @@ export function ProfileOverview() {
     queryFn: () => apiFetch<UserPreferences>('/api/v1/me/preferences'),
   });
   const stats = useQuery({
-    queryKey: queryKeys.profileStats,
+    queryKey: profileQueryKeys.stats.me(),
     queryFn: () => apiFetch<ProfileStats>('/api/v1/me/profile/stats'),
   });
 
@@ -53,7 +53,6 @@ export function ProfileOverview() {
         <SocialProfileHeader
           profile={profile.data}
           visibility={preferences.data.profileVisibility}
-          friendsCount={stats.data?.friendsCount}
           actions={
             <>
               <Button asChild size="sm">
@@ -81,24 +80,23 @@ export function ProfileOverview() {
           }
         />
       ) : null}
+      {stats.isLoading ? <ProfileStatsSkeleton /> : null}
       {stats.isError ? (
-        <ErrorState message="Les statistiques du profil ne sont pas disponibles." />
-      ) : (
-        <ProfileSocialStats
-          loading={stats.isLoading}
-          completion={stats.data?.collectionCompletionPercentage}
-          items={
-            stats.data
-              ? [
-                  { label: 'Cartes uniques', value: stats.data.uniqueCardsCount },
-                  { label: 'Cartes totales', value: stats.data.totalCardsCount },
-                  { label: 'Decks', value: stats.data.decksCount },
-                  { label: 'Amis', value: stats.data.friendsCount },
-                ]
-              : []
-          }
-        />
-      )}
+        <section className="border-y border-border bg-surface px-4 py-5" role="alert">
+          <p className="text-sm font-medium text-foreground">
+            Impossible de charger les statistiques.
+          </p>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="mt-2 px-0"
+            onClick={() => void stats.refetch()}
+          >
+            <RefreshCw className="size-4" /> Réessayer
+          </Button>
+        </section>
+      ) : null}
+      {stats.data ? <ProfileStatsOverview stats={stats.data} ownProfile /> : null}
       {profile.data ? (
         <ProfileCollectionBySeason
           username={profile.data.username}

@@ -3,7 +3,7 @@
 import type { UserPreferences } from '@safir/shared-types';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api-client';
-import { queryKeys } from '@/lib/query-keys';
+import { profileQueryKeys, queryKeys } from '@/lib/query-keys';
 import { useAppStore } from '@/stores/app-store';
 
 export function usePreferences() {
@@ -21,6 +21,7 @@ export function usePreferences() {
       }),
     onSuccess: (preferences) => {
       client.setQueryData(queryKeys.preferences, preferences);
+      void client.invalidateQueries({ queryKey: profileQueryKeys.stats.root });
       notify('Préférence enregistrée.', 'success');
     },
     onError: (error) => notify(error.message, 'error'),

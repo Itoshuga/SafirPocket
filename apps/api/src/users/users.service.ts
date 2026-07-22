@@ -82,31 +82,14 @@ export class UsersService {
         message: 'Les statistiques de ce profil sont privées.',
       });
     }
-    const stats = await this.profileStats.get(profile.id);
-    return {
-      friendsCount: stats.friendsCount,
-      ...(preferences.showCollectionStats
-        ? {
-            decksCount: stats.decksCount,
-            ...(permissions.canViewCollection ? { uniqueCardsCount: stats.uniqueCardsCount } : {}),
-            ...(permissions.canViewQuantities ? { totalCardsCount: stats.totalCardsCount } : {}),
-            ...(permissions.canViewCollectionCompletion
-              ? {
-                  totalAvailableCardsCount: stats.totalAvailableCardsCount,
-                  collectionCompletionPercentage: stats.collectionCompletionPercentage,
-                }
-              : {}),
-          }
-        : {}),
-      ...(preferences.showGameStats
-        ? {
-            gamesPlayed: stats.gamesPlayed,
-            winsCount: stats.winsCount,
-            currentRating: stats.currentRating,
-            currentRank: stats.currentRank,
-          }
-        : {}),
-    };
+    const includeCollection = preferences.showCollectionStats && permissions.canViewCollection;
+    return this.profileStats.get(profile.id, {
+      includeCollection,
+      includeCollectionQuantities: includeCollection && permissions.canViewQuantities,
+      includeCollectionCompletion: includeCollection && permissions.canViewCollectionCompletion,
+      includeGame: preferences.showGameStats,
+      publicDecksOnly: true,
+    });
   }
 
   async search(
