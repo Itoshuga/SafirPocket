@@ -1,3 +1,4 @@
+import { PROFILE_SEASON_PREVIEW_CARD_LIMIT } from '@safir/shared-types';
 import { expect, test, type Page } from '@playwright/test';
 
 const userId = '11111111-1111-4111-8111-111111111111';
@@ -136,6 +137,28 @@ const seasonCollectionItem = {
   ],
 };
 
+const fullSeasonCollectionItems = Array.from({ length: 6 }, (_, index) => {
+  if (index === 0) return seasonCollectionItem;
+  const suffix = String(index + 1).padStart(12, '0');
+  return {
+    ...seasonCollectionItem,
+    card: {
+      ...seasonCollectionItem.card,
+      id: `44444444-4444-4444-8444-${suffix}`,
+      name: `Carte de saison ${index + 1}`,
+      slug: `carte-de-saison-${index + 1}`,
+      number: index + 1,
+      collectionNumber: String(index + 1),
+    },
+    ownedVariants: seasonCollectionItem.ownedVariants.map((variant) => ({
+      ...variant,
+      cardVariantId: `55555555-5555-4555-8555-${suffix}`,
+    })),
+  };
+});
+
+const seasonPreviewCards = fullSeasonCollectionItems.slice(0, PROFILE_SEASON_PREVIEW_CARD_LIMIT);
+
 const seasonSummary = {
   season: {
     id: 'season',
@@ -151,7 +174,7 @@ const seasonSummary = {
     totalCopies: 12,
     completionPercentage: 35,
   },
-  previewCards: [seasonCollectionItem],
+  previewCards: seasonPreviewCards,
 };
 
 const emptySeasonSummary = {
@@ -436,8 +459,13 @@ async function mockPersonalSpace(page: Page) {
           season: seasonSummary.season,
           collection: seasonSummary.collection,
           cards: {
-            data: [seasonCollectionItem],
-            pagination: { page: 1, pageSize: 30, total: 1, pageCount: 1 },
+            data: fullSeasonCollectionItems,
+            pagination: {
+              page: 1,
+              pageSize: 30,
+              total: fullSeasonCollectionItems.length,
+              pageCount: 1,
+            },
           },
         },
       });
@@ -455,22 +483,25 @@ async function mockPersonalSpace(page: Page) {
             completionPercentage: 35,
           },
           cards: {
-            data: [
-              {
-                ...seasonCollectionItem,
-                quantity: undefined,
-                lockedQuantity: undefined,
-                ownedVariants: seasonCollectionItem.ownedVariants.map(
-                  ({
-                    quantity: _quantity,
-                    lockedQuantity: _locked,
-                    lastObtainedAt: _date,
-                    ...variant
-                  }) => variant,
-                ),
-              },
-            ],
-            pagination: { page: 1, pageSize: 30, total: 1, pageCount: 1 },
+            data: fullSeasonCollectionItems.map((item) => ({
+              ...item,
+              quantity: undefined,
+              lockedQuantity: undefined,
+              ownedVariants: item.ownedVariants.map(
+                ({
+                  quantity: _quantity,
+                  lockedQuantity: _locked,
+                  lastObtainedAt: _date,
+                  ...variant
+                }) => variant,
+              ),
+            })),
+            pagination: {
+              page: 1,
+              pageSize: 30,
+              total: fullSeasonCollectionItems.length,
+              pageCount: 1,
+            },
           },
         },
       });
@@ -485,13 +516,11 @@ async function mockPersonalSpace(page: Page) {
               totalAvailableCards: 20,
               completionPercentage: 35,
             },
-            previewCards: [
-              {
-                ...seasonCollectionItem,
-                quantity: undefined,
-                lockedQuantity: undefined,
-              },
-            ],
+            previewCards: seasonSummary.previewCards.map((item) => ({
+              ...item,
+              quantity: undefined,
+              lockedQuantity: undefined,
+            })),
           },
         ],
       });
@@ -632,6 +661,9 @@ test('profile, avatar menu, preferences and social workflows are connected', asy
   await expect(page.getByRole('heading', { name: 'Collection' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Origines' })).toBeVisible();
   await expect(page.getByText('Sentinelle sociale')).toBeVisible();
+  await expect(page.getByLabel('Aperçu des cartes de la saison').getByRole('link')).toHaveCount(
+    PROFILE_SEASON_PREVIEW_CARD_LIMIT,
+  );
   await expect(page.getByText('Aucune carte obtenue pour cette saison.')).toBeVisible();
   await expect(page.getByLabel('Rechercher dans la collection')).toHaveCount(0);
   await expect(page.getByRole('link', { name: 'Collection', exact: true })).toHaveCount(0);
@@ -687,15 +719,46 @@ test('profile, avatar menu, preferences and social workflows are connected', asy
   expect({ consoleErrors, failedResponses }).toEqual({ consoleErrors: [], failedResponses: [] });
 });
 
+test('season preview skeletons and loaded previews are limited to five cards', async ({ page }) => {
+  await mockPersonalSpace(page);
+  let releaseSeasonSummaries: (() => void) | undefined;
+  const seasonSummariesReady = new Promise<void>((resolve) => {
+    releaseSeasonSummaries = resolve;
+  });
+  await page.route('**/api/v1/me/collection/seasons', async (route) => {
+    await seasonSummariesReady;
+    await route.fulfill({ json: [seasonSummary, emptySeasonSummary] });
+  });
+  await login(page);
+
+  await expect(page.getByTestId('season-preview-skeleton')).toHaveCount(
+    PROFILE_SEASON_PREVIEW_CARD_LIMIT * 3,
+  );
+  releaseSeasonSummaries?.();
+  await expect(page.getByTestId('season-preview-skeleton')).toHaveCount(0);
+  await expect(page.getByLabel('Aperçu des cartes de la saison').getByRole('link')).toHaveCount(
+    PROFILE_SEASON_PREVIEW_CARD_LIMIT,
+  );
+});
+
 test('season collection details own the filters, card details and legacy redirect', async ({
   page,
-}) => {
+}, testInfo) => {
   await mockPersonalSpace(page);
   await login(page);
   await expect(page.getByLabel('Rechercher dans la collection')).toHaveCount(0);
   await page.getByRole('link', { name: 'Explorer la collection de la saison Origines' }).click();
   await expect(page).toHaveURL(/\/profile\/collection\/origines$/);
   await expect(page.getByRole('heading', { name: 'Origines' })).toBeVisible();
+  await expect(page.locator('main a[href^="/cards/"]')).toHaveCount(
+    fullSeasonCollectionItems.length,
+  );
+  if (process.env.E2E_CAPTURE_PROFILE_SCREENSHOTS === 'true') {
+    await page.screenshot({
+      path: testInfo.outputPath(`profile-season-own-${page.viewportSize()?.width ?? 0}.png`),
+      fullPage: true,
+    });
+  }
   await page.getByLabel('Rechercher dans la collection').fill('sentinelle');
   await expect(page).toHaveURL(/search=sentinelle/);
   const mobileFilters = page.getByRole('button', { name: /^Filtres/ });
@@ -728,7 +791,7 @@ test('season collection details own the filters, card details and legacy redirec
 
 test('public profile collection obeys public, friends-only and private access', async ({
   page,
-}) => {
+}, testInfo) => {
   const consoleErrors: string[] = [];
   const failedResponses: string[] = [];
   page.on('console', (message) => message.type() === 'error' && consoleErrors.push(message.text()));
@@ -746,9 +809,23 @@ test('public profile collection obeys public, friends-only and private access', 
   );
   await expect(page.getByLabel('Rôle : Pionnier')).toBeVisible();
   await expect(page.getByText('Sentinelle sociale')).toBeVisible();
+  await expect(page.getByLabel('Aperçu des cartes de la saison').getByRole('link')).toHaveCount(
+    PROFILE_SEASON_PREVIEW_CARD_LIMIT,
+  );
   await expect(page.getByText('× 3')).toHaveCount(0);
   await page.getByRole('button', { name: 'Ajouter en ami' }).click();
   await expect.poll(() => mutations.some((path) => path.includes('/by-username/'))).toBe(true);
+
+  await page.goto('/users/lucas_e2e/collection/origines');
+  await expect(page.locator('main a[href^="/cards/"]')).toHaveCount(
+    fullSeasonCollectionItems.length,
+  );
+  if (process.env.E2E_CAPTURE_PROFILE_SCREENSHOTS === 'true') {
+    await page.screenshot({
+      path: testInfo.outputPath(`profile-season-public-${page.viewportSize()?.width ?? 0}.png`),
+      fullPage: true,
+    });
+  }
 
   await page.goto('/users/friends_only');
   await expect(
@@ -792,7 +869,7 @@ test('account deletion is scheduled only after username and checkbox confirmatio
   await expect.poll(() => mutations.some((path) => path.endsWith('/deletion-request'))).toBe(true);
 });
 
-test('profiles remain usable at all requested responsive widths', async ({ page }) => {
+test('profiles remain usable at all requested responsive widths', async ({ page }, testInfo) => {
   await mockPersonalSpace(page);
   await login(page);
   for (const width of [375, 430, 768, 1024, 1280, 1440]) {
@@ -800,11 +877,38 @@ test('profiles remain usable at all requested responsive widths', async ({ page 
     await page.goto('/profile');
     await expect(page.getByRole('heading', { name: 'Safir E2E' })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Collection' })).toBeVisible();
+    const ownPreview = page.getByLabel('Aperçu des cartes de la saison');
+    await expect(ownPreview.getByRole('link')).toHaveCount(PROFILE_SEASON_PREVIEW_CARD_LIMIT);
+    const previewLayout = await ownPreview.evaluate((element) => ({
+      columns: getComputedStyle(element).gridTemplateColumns.split(' ').filter(Boolean).length,
+      firstColumnWidth: Number.parseFloat(getComputedStyle(element).gridTemplateColumns),
+      overflowX: getComputedStyle(element).overflowX,
+      scrollable: element.scrollWidth > element.clientWidth,
+    }));
+    expect(previewLayout.columns).toBe(PROFILE_SEASON_PREVIEW_CARD_LIMIT);
+    expect(previewLayout.overflowX).toBe(width < 768 ? 'auto' : 'visible');
+    expect(previewLayout.scrollable).toBe(width < 768);
+    if (width < 768) expect(previewLayout.firstColumnWidth).toBe(180);
     expect(
       await page.evaluate(
         () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
       ),
     ).toBe(true);
+    if (
+      process.env.E2E_CAPTURE_PROFILE_SCREENSHOTS === 'true' &&
+      (width === 375 || width === 1280)
+    ) {
+      await page.screenshot({
+        path: testInfo.outputPath(`profile-own-${width}.png`),
+        fullPage: true,
+      });
+    }
+    if (width < 768) {
+      await ownPreview.evaluate((element) => element.scrollTo({ left: element.scrollWidth }));
+      await expect
+        .poll(() => ownPreview.evaluate((element) => element.scrollLeft))
+        .toBeGreaterThan(0);
+    }
     await page.goto('/users/lucas_e2e');
     await expect(page.getByRole('heading', { name: 'Lucas E2E' })).toBeVisible();
     expect(
@@ -812,5 +916,14 @@ test('profiles remain usable at all requested responsive widths', async ({ page 
         () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
       ),
     ).toBe(true);
+    if (
+      process.env.E2E_CAPTURE_PROFILE_SCREENSHOTS === 'true' &&
+      (width === 375 || width === 1280)
+    ) {
+      await page.screenshot({
+        path: testInfo.outputPath(`profile-public-${width}.png`),
+        fullPage: true,
+      });
+    }
   }
 });

@@ -1,3 +1,4 @@
+import { PROFILE_SEASON_PREVIEW_CARD_LIMIT } from '@safir/shared-types';
 import { describe, expect, it, vi } from 'vitest';
 import { CollectionsService } from './collections.service.js';
 
@@ -38,30 +39,34 @@ function seasonCard(id: string, number: number, rarityName = 'Rare') {
   };
 }
 
-function ownedSeasonRow({
+function ownedPreviewCard({
   cardId,
   number,
-  quantity,
-  variantId,
+  variants,
   rarityName = 'Rare',
 }: {
   cardId: string;
   number: number;
-  quantity: number;
-  variantId: string;
+  variants: Array<{ id: string; quantity: number }>;
   rarityName?: string;
 }) {
   return {
-    quantity,
-    lockedQuantity: 0,
-    lastObtainedAt: fixedNow,
-    cardVariant: {
-      id: variantId,
-      name: variantId.includes('foil') ? 'Foil' : 'Standard',
-      finish: variantId.includes('foil') ? 'foil' : 'standard',
+    ...seasonCard(cardId, number, rarityName),
+    variants: variants.map(({ id, quantity }, displayOrder) => ({
+      id,
+      name: id.includes('foil') ? 'Foil' : 'Standard',
+      finish: id.includes('foil') ? 'foil' : 'standard',
       artworkPath: null,
-      card: seasonCard(cardId, number, rarityName),
-    },
+      displayOrder,
+      userCards: [{ quantity, lockedQuantity: 0, lastObtainedAt: fixedNow }],
+    })),
+  };
+}
+
+function seasonOwnershipRow(cardId: string, quantity: number, seasonId = 'season-a') {
+  return {
+    quantity,
+    cardVariant: { cardId, card: { seasonId } },
   };
 }
 
@@ -251,6 +256,22 @@ describe('CollectionsService', () => {
         sortOrder: 1,
         _count: { cards: 4 },
         boosters: [{ imageUrl: 'boosters/origines.webp' }],
+        cards: [
+          ownedPreviewCard({
+            cardId: 'card-rare',
+            number: 8,
+            variants: [
+              { id: 'variant-standard', quantity: 2 },
+              { id: 'variant-foil', quantity: 3 },
+            ],
+          }),
+          ownedPreviewCard({
+            cardId: 'card-common',
+            number: 1,
+            variants: [{ id: 'variant-common', quantity: 1 }],
+            rarityName: 'Common',
+          }),
+        ],
       },
       {
         id: 'season-b',
@@ -260,23 +281,13 @@ describe('CollectionsService', () => {
         sortOrder: 2,
         _count: { cards: 3 },
         boosters: [],
+        cards: [],
       },
     ];
     const rows = [
-      ownedSeasonRow({
-        cardId: 'card-rare',
-        number: 8,
-        quantity: 2,
-        variantId: 'variant-standard',
-      }),
-      ownedSeasonRow({ cardId: 'card-rare', number: 8, quantity: 3, variantId: 'variant-foil' }),
-      ownedSeasonRow({
-        cardId: 'card-common',
-        number: 1,
-        quantity: 1,
-        variantId: 'variant-common',
-        rarityName: 'Common',
-      }),
+      seasonOwnershipRow('card-rare', 2),
+      seasonOwnershipRow('card-rare', 3),
+      seasonOwnershipRow('card-common', 1),
     ];
     const prisma = {
       cardSeason: { findMany: vi.fn().mockResolvedValue(seasons) },
@@ -310,18 +321,75 @@ describe('CollectionsService', () => {
     expect(prisma.cardSeason.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         orderBy: [{ sortOrder: 'asc' }, { startDate: 'desc' }, { name: 'asc' }],
+        select: expect.objectContaining({
+          cards: expect.objectContaining({
+            take: PROFILE_SEASON_PREVIEW_CARD_LIMIT,
+            orderBy: [{ rarity: { sortOrder: 'desc' } }, { number: 'asc' }, { id: 'asc' }],
+          }),
+        }),
       }),
     );
     expect(prisma.userCard.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        orderBy: [
-          { cardVariant: { card: { rarity: { sortOrder: 'desc' } } } },
-          { cardVariant: { card: { number: 'asc' } } },
-          { cardVariant: { displayOrder: 'asc' } },
-        ],
+        select: {
+          quantity: true,
+          cardVariant: { select: { cardId: true, card: { select: { seasonId: true } } } },
+        },
       }),
     );
   });
+
+  it.each([
+    { ownedCards: 8, expectedPreviewCards: 5 },
+    { ownedCards: 4, expectedPreviewCards: 4 },
+    { ownedCards: 2, expectedPreviewCards: 2 },
+  ])(
+    'returns $expectedPreviewCards previews for a season containing $ownedCards owned cards',
+    async ({ ownedCards, expectedPreviewCards }) => {
+      const cards = Array.from({ length: ownedCards }, (_, index) =>
+        ownedPreviewCard({
+          cardId: `card-${index + 1}`,
+          number: index + 1,
+          variants: [{ id: `variant-${index + 1}`, quantity: index + 1 }],
+        }),
+      );
+      const ownershipRows = Array.from({ length: ownedCards }, (_, index) =>
+        seasonOwnershipRow(`card-${index + 1}`, index + 1),
+      );
+      const prisma = {
+        cardSeason: {
+          findMany: vi.fn().mockResolvedValue([
+            {
+              id: 'season-a',
+              name: 'Origines',
+              slug: 'origines',
+              code: 'ORI',
+              sortOrder: 1,
+              _count: { cards: 20 },
+              boosters: [],
+              cards,
+            },
+          ]),
+        },
+        userCard: { findMany: vi.fn().mockResolvedValue(ownershipRows) },
+      };
+
+      const [summary] = await new CollectionsService(prisma as never, {} as never).seasonSummaries(
+        crypto.randomUUID(),
+      );
+
+      expect(summary?.previewCards).toHaveLength(expectedPreviewCards);
+      expect(summary?.previewCards.map(({ card }) => card.id)).toEqual(
+        cards.slice(0, expectedPreviewCards).map(({ id }) => id),
+      );
+      expect(summary?.collection).toEqual({
+        uniqueOwnedCards: ownedCards,
+        totalAvailableCards: 20,
+        totalCopies: (ownedCards * (ownedCards + 1)) / 2,
+        completionPercentage: ownedCards * 5,
+      });
+    },
+  );
 
   it('hides empty seasons, quantities and completion when public permissions require it', async () => {
     const prisma = {
@@ -335,6 +403,13 @@ describe('CollectionsService', () => {
             sortOrder: 1,
             _count: { cards: 4 },
             boosters: [],
+            cards: [
+              ownedPreviewCard({
+                cardId: 'card-rare',
+                number: 8,
+                variants: [{ id: 'variant-a', quantity: 2 }],
+              }),
+            ],
           },
           {
             id: 'season-b',
@@ -344,15 +419,12 @@ describe('CollectionsService', () => {
             sortOrder: 2,
             _count: { cards: 3 },
             boosters: [],
+            cards: [],
           },
         ]),
       },
       userCard: {
-        findMany: vi
-          .fn()
-          .mockResolvedValue([
-            ownedSeasonRow({ cardId: 'card-rare', number: 8, quantity: 2, variantId: 'variant-a' }),
-          ]),
+        findMany: vi.fn().mockResolvedValue([seasonOwnershipRow('card-rare', 2)]),
       },
     };
     const access = {

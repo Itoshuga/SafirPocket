@@ -845,6 +845,8 @@ export interface SeasonCollectionCardItem {
   ownedVariants: SeasonCollectionOwnedVariant[];
 }
 
+export const PROFILE_SEASON_PREVIEW_CARD_LIMIT = 5;
+
 export interface ProfileSeasonCollectionSummary {
   season: {
     id: string;
@@ -860,6 +862,7 @@ export interface ProfileSeasonCollectionSummary {
     totalCopies?: number;
     completionPercentage?: number;
   };
+  /** Aperçu déterministe limité à PROFILE_SEASON_PREVIEW_CARD_LIMIT cartes. */
   previewCards: SeasonCollectionCardItem[];
 }
 

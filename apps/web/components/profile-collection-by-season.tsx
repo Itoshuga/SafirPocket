@@ -1,5 +1,6 @@
 'use client';
 
+import { PROFILE_SEASON_PREVIEW_CARD_LIMIT } from '@safir/shared-types';
 import type {
   CollectionVisibility,
   ProfilePermissions,
@@ -109,27 +110,20 @@ export function ProfileSeasonCollectionBlock({
           className="hidden h-20 w-16 shrink-0 rounded-md border border-border sm:block"
         />
         <div className="min-w-0 flex-1">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <p className="text-xs font-semibold text-primary">{season.code ?? 'Saison Safir'}</p>
-              <h3 className="mt-1 text-lg font-semibold text-foreground">{season.name}</h3>
-              <p className="mt-1 text-sm text-muted-foreground">
-                {collection.uniqueOwnedCards} carte
-                {collection.uniqueOwnedCards > 1 ? 's' : ''} possédée
-                {collection.uniqueOwnedCards > 1 ? 's' : ''}
-                {collection.totalAvailableCards !== undefined
-                  ? ` sur ${collection.totalAvailableCards}`
-                  : ''}
-                {collection.totalCopies !== undefined
-                  ? ` · ${collection.totalCopies} exemplaire${collection.totalCopies > 1 ? 's' : ''}`
-                  : ''}
-              </p>
-            </div>
-            <Button asChild variant="outline" size="sm">
-              <Link href={href} aria-label={`Explorer la collection de la saison ${season.name}`}>
-                Explorer la collection <ArrowRight className="size-4" />
-              </Link>
-            </Button>
+          <div>
+            <p className="text-xs font-semibold text-primary">{season.code ?? 'Saison Safir'}</p>
+            <h3 className="mt-1 text-lg font-semibold text-foreground">{season.name}</h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {collection.uniqueOwnedCards} carte
+              {collection.uniqueOwnedCards > 1 ? 's' : ''} possédée
+              {collection.uniqueOwnedCards > 1 ? 's' : ''}
+              {collection.totalAvailableCards !== undefined
+                ? ` sur ${collection.totalAvailableCards}`
+                : ''}
+              {collection.totalCopies !== undefined
+                ? ` · ${collection.totalCopies} exemplaire${collection.totalCopies > 1 ? 's' : ''}`
+                : ''}
+            </p>
           </div>
           {collection.completionPercentage !== undefined ? (
             <Progress
@@ -149,17 +143,27 @@ export function ProfileSeasonCollectionBlock({
           </Button>
         </div>
       ) : null}
+      <div className="mt-4 flex sm:justify-end">
+        <Button asChild variant="outline" size="sm" className="w-full sm:w-auto">
+          <Link href={href} aria-label={`Explorer la collection de la saison ${season.name}`}>
+            Explorer la collection <ArrowRight className="size-4" />
+          </Link>
+        </Button>
+      </div>
     </article>
   );
 }
 
 export function SeasonCollectionPreview({ cards }: { cards: SeasonCollectionCardItem[] }) {
+  const previewCards = cards.slice(0, PROFILE_SEASON_PREVIEW_CARD_LIMIT);
   return (
     <div
-      className="mt-5 grid grid-cols-3 gap-3 min-[430px]:grid-cols-4 md:grid-cols-6 xl:grid-cols-8"
+      className="mt-5 grid grid-flow-col auto-cols-[11.25rem] snap-x snap-proximity gap-3 overflow-x-auto overscroll-x-contain pb-2 md:grid-flow-row md:grid-cols-5 md:auto-cols-auto md:snap-none md:overflow-visible md:pb-0 [&>*]:snap-start"
+      role="region"
       aria-label="Aperçu des cartes de la saison"
+      tabIndex={0}
     >
-      {cards.map((item) => {
+      {previewCards.map((item) => {
         const variant = item.ownedVariants[0];
         return (
           <TcgCard
@@ -184,9 +188,13 @@ function SeasonCollectionBlocksSkeleton() {
       {Array.from({ length: 3 }, (_, index) => (
         <div key={index} className="border-b border-border py-7 first:border-t">
           <Skeleton className="h-20 w-full" />
-          <div className="mt-5 grid grid-cols-3 gap-3 md:grid-cols-6 xl:grid-cols-8">
-            {Array.from({ length: 6 }, (_, cardIndex) => (
-              <Skeleton key={cardIndex} className="aspect-[5/8]" />
+          <div className="mt-5 grid grid-flow-col auto-cols-[11.25rem] gap-3 overflow-x-hidden pb-2 md:grid-flow-row md:grid-cols-5 md:auto-cols-auto md:pb-0">
+            {Array.from({ length: PROFILE_SEASON_PREVIEW_CARD_LIMIT }, (_, cardIndex) => (
+              <Skeleton
+                key={cardIndex}
+                className="aspect-[5/8]"
+                data-testid="season-preview-skeleton"
+              />
             ))}
           </div>
         </div>

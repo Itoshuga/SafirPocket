@@ -58,7 +58,7 @@ omises selon les preferences de collection et de jeu.
 
 `GET /api/v1/users/:username/collection` conserve le contrat historique. Les profils utilisent
 `GET /api/v1/me/collection/seasons` ou
-`GET /api/v1/users/:username/collection/seasons` pour obtenir les agregats et huit cartes maximum
+`GET /api/v1/users/:username/collection/seasons` pour obtenir les agregats et cinq cartes maximum
 par saison. L'apercu suit un ordre stable : rarete decroissante, numero de collection croissant,
 puis ordre de variante. Le premier booster publie et actif par `sort_order`, puis par nom, fournit
 le visuel; aucun booster n'est choisi aleatoirement. Le profil propre conserve les saisons vides,

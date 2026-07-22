@@ -186,7 +186,7 @@ L’application utilise exclusivement un thème clair, y compris lorsque le syst
   principale; le drawer mobile réutilise la même configuration et les mêmes permissions.
 - Rayons limités à `sm`, `md` et `lg`, ombres légères et accent saphir unique.
 - Le profil social associe bannière, avatar superposé, identité, actions et statistiques compactes ;
-  sa collection principale est un aperçu par saison sans filtres avancés.
+  sa collection principale est un aperçu de cinq cartes maximum par saison sans filtres avancés.
 - Les filtres de catalogue et des collections saisonnières détaillées sont synchronisés avec l’URL
   et exécutés par l’API.
 - `next/image` conserve le ratio des cartes; la route `/artwork/card/*` relaie Storage avec la clé anon publique et laisse les policies RLS contrôler la lecture.
@@ -218,7 +218,8 @@ Les endpoints ajoutés pour la refonte sont notamment :
 - `GET /api/v1/me/collection` paginé et filtrable, plus `/summary` et `/card/:cardId` ;
 - `GET /api/v1/users/:username/collection` pour les collections publiques autorisées et filtrées ;
 - `GET /api/v1/me/collection/seasons` et
-  `GET /api/v1/users/:username/collection/seasons` pour les résumés et aperçus par saison ;
+  `GET /api/v1/users/:username/collection/seasons` pour les résumés et aperçus déterministes de
+  cinq cartes maximum par saison ;
 - `GET /api/v1/me/collection/seasons/:seasonSlug` et sa variante publique pour la recherche, les
   filtres de rareté, type, Commandant et possession, le tri et la pagination d’une saison ;
 - `GET /api/v1/me/profile/summary` pour le tableau de bord et le profil ;

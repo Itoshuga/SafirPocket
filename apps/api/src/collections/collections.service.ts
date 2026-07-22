@@ -1,4 +1,5 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { PROFILE_SEASON_PREVIEW_CARD_LIMIT } from '@safir/shared-types';
 import type {
   ProfileCollectionItem,
   ProfileSeasonCollectionSummary,
@@ -20,6 +21,26 @@ const seasonCardInclude = {
 } satisfies Prisma.CardInclude;
 
 type SeasonCardWithRelations = Prisma.CardGetPayload<{ include: typeof seasonCardInclude }>;
+
+const seasonPreviewCardInclude = (userId: string) =>
+  ({
+    ...cardRelations,
+    variants: {
+      where: { userCards: { some: { userId, quantity: { gt: 0 } } } },
+      select: {
+        id: true,
+        name: true,
+        finish: true,
+        artworkPath: true,
+        displayOrder: true,
+        userCards: {
+          where: { userId, quantity: { gt: 0 } },
+          select: { quantity: true, lockedQuantity: true, lastObtainedAt: true },
+        },
+      },
+      orderBy: [{ displayOrder: 'asc' as const }, { name: 'asc' as const }],
+    },
+  }) satisfies Prisma.CardInclude;
 
 @Injectable()
 export class CollectionsService {
@@ -120,7 +141,13 @@ export class CollectionsService {
       includePrivateOwnership: boolean;
     },
   ): Promise<ProfileSeasonCollectionSummary[]> {
-    const [seasons, ownedRows] = await Promise.all([
+    const ownedCardsWhere = {
+      status: 'published' as const,
+      isActive: true,
+      deletedAt: null,
+      variants: { some: { userCards: { some: { userId, quantity: { gt: 0 } } } } },
+    } satisfies Prisma.CardWhereInput;
+    const [seasons, ownershipRows] = await Promise.all([
       this.prisma.cardSeason.findMany({
         where: { isActive: true, deletedAt: null },
         select: {
@@ -140,6 +167,12 @@ export class CollectionsService {
             orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
             take: 1,
           },
+          cards: {
+            where: ownedCardsWhere,
+            include: seasonPreviewCardInclude(userId),
+            orderBy: [{ rarity: { sortOrder: 'desc' } }, { number: 'asc' }, { id: 'asc' }],
+            take: PROFILE_SEASON_PREVIEW_CARD_LIMIT,
+          },
         },
         orderBy: [{ sortOrder: 'asc' }, { startDate: 'desc' }, { name: 'asc' }],
       }),
@@ -158,73 +191,74 @@ export class CollectionsService {
         },
         select: {
           quantity: true,
-          lockedQuantity: true,
-          lastObtainedAt: true,
           cardVariant: {
             select: {
-              id: true,
-              name: true,
-              finish: true,
-              artworkPath: true,
-              card: { include: cardRelations },
+              cardId: true,
+              card: { select: { seasonId: true } },
             },
           },
         },
-        orderBy: [
-          { cardVariant: { card: { rarity: { sortOrder: 'desc' } } } },
-          { cardVariant: { card: { number: 'asc' } } },
-          { cardVariant: { displayOrder: 'asc' } },
-        ],
       }),
     ]);
 
-    const cardsBySeason = new Map<string, Map<string, SeasonCollectionCardItem>>();
-    for (const row of ownedRows) {
-      const card = row.cardVariant.card;
-      const seasonCards = cardsBySeason.get(card.seasonId) ?? new Map();
-      const existing = seasonCards.get(card.id);
-      const variant = {
-        cardVariantId: row.cardVariant.id,
-        name: row.cardVariant.name,
-        finish: row.cardVariant.finish,
-        artworkPath: row.cardVariant.artworkPath,
-        ...(options.canViewQuantities ? { quantity: row.quantity } : {}),
-        ...(options.includePrivateOwnership
-          ? {
-              lockedQuantity: row.lockedQuantity,
-              lastObtainedAt: row.lastObtainedAt.toISOString(),
-            }
-          : {}),
+    const ownershipBySeason = new Map<string, { cardIds: Set<string>; totalCopies: number }>();
+    for (const row of ownershipRows) {
+      const seasonId = row.cardVariant.card.seasonId;
+      const ownership = ownershipBySeason.get(seasonId) ?? {
+        cardIds: new Set<string>(),
+        totalCopies: 0,
       };
-      if (existing) {
-        existing.ownedVariants.push(variant);
-        if (options.canViewQuantities) {
-          existing.quantity = (existing.quantity ?? 0) + row.quantity;
-        }
-        if (options.includePrivateOwnership) {
-          existing.lockedQuantity = (existing.lockedQuantity ?? 0) + row.lockedQuantity;
-        }
-      } else {
-        seasonCards.set(card.id, {
-          card: toCard(card),
-          owned: true,
-          ...(options.canViewQuantities ? { quantity: row.quantity } : {}),
-          ...(options.includePrivateOwnership ? { lockedQuantity: row.lockedQuantity } : {}),
-          ownedVariants: [variant],
-        });
-      }
-      cardsBySeason.set(card.seasonId, seasonCards);
+      ownership.cardIds.add(row.cardVariant.cardId);
+      ownership.totalCopies += row.quantity;
+      ownershipBySeason.set(seasonId, ownership);
     }
 
     return seasons.flatMap((season) => {
-      const cards = [...(cardsBySeason.get(season.id)?.values() ?? [])];
-      if (!options.includeEmpty && cards.length === 0) return [];
-      const totalCopies = options.canViewQuantities
-        ? cards.reduce((sum, card) => sum + (card.quantity ?? 0), 0)
-        : undefined;
+      const ownership = ownershipBySeason.get(season.id);
+      const uniqueOwnedCards = ownership?.cardIds.size ?? 0;
+      if (!options.includeEmpty && uniqueOwnedCards === 0) return [];
+      const totalCopies = options.canViewQuantities ? (ownership?.totalCopies ?? 0) : undefined;
       const completion = season._count.cards
-        ? Math.round((cards.length / season._count.cards) * 1000) / 10
+        ? Math.round((uniqueOwnedCards / season._count.cards) * 1000) / 10
         : 0;
+      const previewCards = season.cards
+        .slice(0, PROFILE_SEASON_PREVIEW_CARD_LIMIT)
+        .map<SeasonCollectionCardItem>((card) => {
+          const ownedVariants = card.variants.flatMap((variant) => {
+            const variantOwnership = variant.userCards[0];
+            if (!variantOwnership) return [];
+            return [
+              {
+                cardVariantId: variant.id,
+                name: variant.name,
+                finish: variant.finish,
+                artworkPath: variant.artworkPath,
+                ...(options.canViewQuantities ? { quantity: variantOwnership.quantity } : {}),
+                ...(options.includePrivateOwnership
+                  ? {
+                      lockedQuantity: variantOwnership.lockedQuantity,
+                      lastObtainedAt: variantOwnership.lastObtainedAt.toISOString(),
+                    }
+                  : {}),
+              },
+            ];
+          });
+          const previewQuantity = ownedVariants.reduce(
+            (sum, variant) => sum + (variant.quantity ?? 0),
+            0,
+          );
+          const previewLockedQuantity = ownedVariants.reduce(
+            (sum, variant) => sum + (variant.lockedQuantity ?? 0),
+            0,
+          );
+          return {
+            card: toCard(card),
+            owned: true,
+            ...(options.canViewQuantities ? { quantity: previewQuantity } : {}),
+            ...(options.includePrivateOwnership ? { lockedQuantity: previewLockedQuantity } : {}),
+            ownedVariants,
+          };
+        });
       return [
         {
           season: {
@@ -236,7 +270,7 @@ export class CollectionsService {
             sortOrder: season.sortOrder,
           },
           collection: {
-            uniqueOwnedCards: cards.length,
+            uniqueOwnedCards,
             ...(options.canViewCompletion
               ? {
                   totalAvailableCards: season._count.cards,
@@ -245,7 +279,7 @@ export class CollectionsService {
               : {}),
             ...(totalCopies !== undefined ? { totalCopies } : {}),
           },
-          previewCards: cards.slice(0, 8),
+          previewCards,
         },
       ];
     });

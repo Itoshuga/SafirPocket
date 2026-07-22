@@ -38,7 +38,9 @@ Le profil social compose `ProfileBanner`, `SocialProfileHeader`, `ProfileSocialS
 `ProfileCollectionBySeason`. La bannière conserve environ 2,4:1 sur mobile et 3,5:1 dès `sm`;
 l’avatar chevauche son bord inférieur. Les statistiques utilisent des séparateurs fins, jamais de
 grands widgets. La page principale montre seulement les aperçus saisonniers; le panneau de filtres
-partagé `CardsToolbar` appartient aux routes détaillées de saison.
+partagé `CardsToolbar` appartient aux routes détaillées de saison. Chaque aperçu contient cinq
+cartes maximum, sur une rangée horizontale défilable en mobile avec une largeur de carte équivalente
+au desktop, puis cinq colonnes dès `md` sur toute la largeur disponible.
 
 ## Mise en page responsive
 
